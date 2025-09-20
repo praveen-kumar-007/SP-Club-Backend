@@ -1,7 +1,7 @@
 // routes/registerRoutes.js
 const express = require('express');
 const router = express.Router();
-const Registration = require('../models/Registration'); // Import the Registration model
+const Registration = require('../models/registration'); // Import the Registration model
 
 // POST /api/register - Submit a new registration
 router.post('/', async (req, res) => {
