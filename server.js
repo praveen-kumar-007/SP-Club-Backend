@@ -9,7 +9,7 @@ const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(cors({
-  origin: "https://sp-club-frontend.vercel.app", 
+  origin:`${process.env.FRONTEND_URI}`, 
   credentials: true,
 })); // Allow cross-origin requests from your frontend
 app.use(express.json()); // To parse JSON bodies
@@ -32,6 +32,8 @@ app.use('/api/contact', contactRoutes);
 app.use('/api/register', registerRoutes);
 
 // Start the server
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+// app.listen(PORT, () => {
+//   console.log(`Server running on port ${PORT}`);
+// });
+
+module.exports= app //for serverless deployment in vercel
