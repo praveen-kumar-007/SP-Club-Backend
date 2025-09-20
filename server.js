@@ -33,9 +33,9 @@ app.use('/api/contact', contactRoutes);
 app.use('/api/register', registerRoutes);
 
 // Start the server
-// app.listen(PORT, () => {
-//   console.log(`Server running on port ${PORT}`);
-// });
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
 
-// for serverless deployment in vercel
-module.exports= app
+// // for serverless deployment in vercel
+// module.exports= app
