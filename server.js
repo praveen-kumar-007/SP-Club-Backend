@@ -7,6 +7,10 @@ const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Import and use routes
+const contactRoutes = require('./routes/contactRoutes');
+const registerRoutes = require('./routes/registerRoutes');
+
 // Middleware
 app.use(cors({
   origin:`${process.env.FRONTEND_URI}`, 
@@ -23,10 +27,6 @@ mongoose.connect(process.env.MONGO_URI)
 app.get('/', (req, res) => {
   res.send('SP Club Backend is running!');
 });
-
-// Import and use routes
-const contactRoutes = require('./routes/contactRoutes');
-const registerRoutes = require('./routes/registerRoutes');
 
 app.use('/api/contact', contactRoutes);
 app.use('/api/register', registerRoutes);
