@@ -6,13 +6,14 @@ const cors = require('cors');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-
-// Middleware
-app.use(cors({
-  origin: "https://sp-club-frontend.vercel.app", 
-  credentials: true,
-})); // Allow cross-origin requests from your frontend
 app.use(express.json()); // To parse JSON bodies
+
+
+// Import and use routes
+const contactRoutes = require('./routes/contactRoutes');
+const registerRoutes = require('./routes/registerRoutes');
+
+app.use(cors());
 
 // MongoDB Connection
 mongoose.connect(process.env.MONGO_URI)
@@ -23,10 +24,6 @@ mongoose.connect(process.env.MONGO_URI)
 app.get('/', (req, res) => {
   res.send('SP Club Backend is running!');
 });
-
-// Import and use routes
-const contactRoutes = require('./routes/contactRoutes');
-const registerRoutes = require('./routes/registerRoutes');
 
 app.use('/api/contact', contactRoutes);
 app.use('/api/register', registerRoutes);

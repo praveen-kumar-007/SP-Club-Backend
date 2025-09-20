@@ -1,15 +1,11 @@
 // routes/registerRoutes.js
 const express = require('express');
 const router = express.Router();
-const Registration = require('../models/Registration'); // Import the Registration model
+const Registration = require('../models/registration'); // Import the Registration model
 
 // POST /api/register - Submit a new registration
 router.post('/', async (req, res) => {
   try {
-    res.setHeader("Access-Control-Allow-Origin", "https://sp-club-frontend.vercel.app");
-    res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-    res.setHeader("Access-Control-Allow-Credentials", "true");
     const {
       name, email, phone, role, ageGroup, experience,
       address, dob, aadharNumber, clubDetails, message,
