@@ -8,10 +8,6 @@ const Contact = require('../models/contact'); // Import the Contact model
 // POST /api/contact - Submit a new contact message
 router.post('/', async (req, res) => {
   try {
-    // res.setHeader("Access-Control-Allow-Origin", "https://sp-club-frontend.vercel.app");
-    // res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-    // res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-    // res.setHeader("Access-Control-Allow-Credentials", "true");
     const { name, email, subject, message } = req.body;
 
     // Basic validation (more robust validation can be added here or in model)
