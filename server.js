@@ -8,7 +8,10 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Middleware
-app.use(cors()); // Allow cross-origin requests from your frontend
+app.use(cors({
+  origin: "https://sp-club-frontend.vercel.app/", 
+  credentials: true,
+})); // Allow cross-origin requests from your frontend
 app.use(express.json()); // To parse JSON bodies
 
 // MongoDB Connection
