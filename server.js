@@ -12,11 +12,15 @@ const contactRoutes = require('./routes/contactRoutes');
 const registerRoutes = require('./routes/registerRoutes');
 
 // Middleware
-app.use(cors({
-  origin: process.env.FRONTEND_URI, 
-  allowedHeaders:['Authorization', 'Content-Type'],
-  credentials: true,
-})); // Allow cross-origin requests from your frontend
+// app.use(cors({
+//   origin: process.env.FRONTEND_URI, 
+//   allowedHeaders:['Authorization', 'Content-Type'],
+//   credentials: true,
+// })); // Allow cross-origin requests from your frontend
+
+app.use(cors());
+
+
 app.use(express.json()); // To parse JSON bodies
 
 // MongoDB Connection
