@@ -1,16 +1,31 @@
 // routes/registerRoutes.js
 const express = require('express');
 const router = express.Router();
+const { upload } = require('../config/cloudinary');
 const Registration = require('../models/registration'); // Import the Registration model
 
 // POST /api/register - Submit a new registration
-router.post('/', async (req, res) => {
+router.post('/', upload.single('photo'), async (req, res) => {
   try {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('=== Registration Request Received ===');
+      console.log('Body:', req.body);
+      console.log('File:', req.file);
+    }
+    
     const {
       name, email, phone, role, ageGroup, experience,
       address, dob, aadharNumber, clubDetails, message,
       newsletter, terms
     } = req.body;
+
+    // Parse kabaddiPositions from string to array if it exists
+    let kabaddiPositions = [];
+    if (req.body.kabaddiPositions) {
+      kabaddiPositions = typeof req.body.kabaddiPositions === 'string' 
+        ? JSON.parse(req.body.kabaddiPositions) 
+        : req.body.kabaddiPositions;
+    }
 
     // Basic validation (add more as needed)
     if (!name || !email || !role || !dob || !aadharNumber || !clubDetails || !terms) {
@@ -29,13 +44,22 @@ router.post('/', async (req, res) => {
     const newRegistration = new Registration({
       name, email, phone, role, ageGroup, experience,
       address, dob, aadharNumber, clubDetails, message,
+      photo: req.file ? req.file.path : null, // Store Cloudinary URL
+      kabaddiPositions,
       newsletter, terms
     });
 
     await newRegistration.save(); // Save the registration to MongoDB
+    if (process.env.NODE_ENV === 'development') {
+      console.log('✅ Registration saved successfully');
+    }
     res.status(201).json({ message: 'Registration successful!', registration: newRegistration });
   } catch (error) {
-    console.error('Error submitting registration form:', error);
+    if (process.env.NODE_ENV === 'development') {
+      console.error('❌ Error submitting registration form:', error);
+      console.error('Error details:', error.message);
+      console.error('Stack:', error.stack);
+    }
     // Handle Mongoose validation errors
     if (error.name === 'ValidationError') {
         const errors = Object.values(error.errors).map(err => err.message);
