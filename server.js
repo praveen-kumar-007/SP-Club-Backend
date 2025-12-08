@@ -41,6 +41,7 @@ app.use(express.urlencoded({ extended: true })); // To parse URL-encoded bodies
 const contactRoutes = require('./routes/contactRoutes');
 const registerRoutes = require('./routes/registerRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const newsletterRoutes = require('./routes/newsletterRoutes');
 
 // MongoDB Connection
 mongoose.connect(process.env.MONGO_URI)
@@ -55,6 +56,7 @@ app.get('/', (req, res) => {
 app.use('/api/contact', contactRoutes);
 app.use('/api/register', registerRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/newsletter', newsletterRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
