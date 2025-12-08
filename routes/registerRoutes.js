@@ -14,9 +14,9 @@ router.post('/', upload.single('photo'), async (req, res) => {
     }
     
     const {
-      name, email, phone, role, ageGroup, experience,
-      address, dob, aadharNumber, clubDetails, message,
-      newsletter, terms
+      name, fathersName, email, phone, gender, dob, bloodGroup,
+      role, ageGroup, experience, address, aadharNumber, clubDetails,
+      message, newsletter, terms
     } = req.body;
 
     // Parse kabaddiPositions from string to array if it exists
@@ -28,7 +28,7 @@ router.post('/', upload.single('photo'), async (req, res) => {
     }
 
     // Basic validation (add more as needed)
-    if (!name || !email || !role || !dob || !aadharNumber || !clubDetails || !terms) {
+    if (!name || !fathersName || !email || !gender || !bloodGroup || !role || !dob || !aadharNumber || !clubDetails || !terms) {
       return res.status(400).json({ message: 'Required fields are missing.' });
     }
     if (!terms) {
@@ -42,11 +42,10 @@ router.post('/', upload.single('photo'), async (req, res) => {
     }
 
     const newRegistration = new Registration({
-      name, email, phone, role, ageGroup, experience,
-      address, dob, aadharNumber, clubDetails, message,
-      photo: req.file ? req.file.path : null, // Store Cloudinary URL
-      kabaddiPositions,
-      newsletter, terms
+      name, fathersName, email, phone, gender, dob, bloodGroup,
+      role, ageGroup, experience, address, aadharNumber, clubDetails,
+      message, photo: req.file ? req.file.path : null, // Store Cloudinary URL
+      kabaddiPositions, newsletter, terms
     });
 
     await newRegistration.save(); // Save the registration to MongoDB

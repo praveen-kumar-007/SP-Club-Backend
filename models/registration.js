@@ -2,22 +2,35 @@
 const mongoose = require('mongoose');
 
 const registrationSchema = new mongoose.Schema({
+  // Personal Information
   name: { type: String, required: true },
+  fathersName: { type: String, required: true },
   email: { type: String, required: true },
   phone: { type: String },
+  gender: { type: String, enum: ['male', 'female', 'other'], required: true },
+  dob: { type: Date, required: true },
+  bloodGroup: { type: String, enum: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'], required: true },
+  
+  // Address & Identification
+  address: { type: String },
+  aadharNumber: { type: String, required: true, unique: true }, // Aadhar should be unique
+  
+  // Sports & Role
   role: { type: String, required: true },
   ageGroup: { type: String },
   experience: { type: String },
-  address: { type: String },
-  dob: { type: Date, required: true },
-  aadharNumber: { type: String, required: true, unique: true }, // Aadhar should be unique
+  kabaddiPositions: [{ type: String }], // Array of selected kabaddi positions
+  
+  // Club & Registration Info
   clubDetails: { type: String, required: true },
   message: { type: String },
   photo: { type: String, required: true }, // Path to uploaded passport size photo - MANDATORY
-  kabaddiPositions: [{ type: String }], // Array of selected kabaddi positions
+  
+  // Preferences
   newsletter: { type: Boolean, default: true },
   terms: { type: Boolean, required: true },
   registeredAt: { type: Date, default: Date.now },
+  
   // Admin approval fields
   status: { 
     type: String, 
