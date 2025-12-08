@@ -65,6 +65,47 @@ app.get('/api/test-email', (req, res) => {
   res.json(config);
 });
 
+// Send test email endpoint
+app.post('/api/send-test-email', async (req, res) => {
+  try {
+    const { sendApprovalEmail } = require('./services/emailService');
+    
+    console.log('📧 TEST: Sending test email to impraveen105@gmail.com');
+    
+    // Create a fake registration object for testing
+    const testRegistration = {
+      name: 'Praveen Kumar (TEST)',
+      fathersName: 'Test Father',
+      email: 'impraveen105@gmail.com',
+      phone: '9999999999',
+      parentsPhone: '8888888888',
+      role: 'Player',
+      bloodGroup: 'O+',
+      registeredAt: new Date(),
+      aadharNumber: 'TEST123456'
+    };
+    
+    const emailResult = await sendApprovalEmail(testRegistration);
+    
+    res.json({
+      success: emailResult.success,
+      message: emailResult.success 
+        ? 'Test email sent successfully! Check impraveen105@gmail.com inbox (and spam folder)'
+        : 'Failed to send test email',
+      messageId: emailResult.messageId,
+      error: emailResult.error,
+      sentTo: 'impraveen105@gmail.com'
+    });
+  } catch (error) {
+    console.error('❌ Error in test email endpoint:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error sending test email',
+      error: error.message
+    });
+  }
+});
+
 app.use('/api/contact', contactRoutes);
 app.use('/api/register', registerRoutes);
 app.use('/api/admin', adminRoutes);
