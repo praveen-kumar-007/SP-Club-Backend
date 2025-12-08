@@ -133,7 +133,7 @@ router.post('/logout', adminAuth, (req, res) => {
 
 // ========== REGISTRATION MANAGEMENT ROUTES ==========
 
-// GET /api/admin/registrations - Fetch all registrations with filters
+// GET /api/admin/registrations - Fetch registrations with pagination and filters (optimized)
 router.get('/registrations', adminAuth, async (req, res) => {
   try {
     const { status = 'pending', page = 1, limit = 10, search = '' } = req.query;
@@ -155,15 +155,19 @@ router.get('/registrations', adminAuth, async (req, res) => {
     }
 
     const skip = (page - 1) * limit;
+    const limitNum = Math.min(parseInt(limit) || 10, 100); // Cap limit at 100
     
+    // Optimize: Only fetch needed fields to reduce data transfer & improve performance
+    // Use lean() for faster queries (returns plain objects, not mongoose docs)
     const registrations = await Registration.find(query)
-      .populate('approvedBy', 'username email')
+      .select('_id name email phone parentsPhone role bloodGroup status photo registeredAt aadharNumber')
       .sort({ registeredAt: -1 })
       .skip(skip)
-      .limit(parseInt(limit));
+      .limit(limitNum)
+      .lean();
 
     const total = await Registration.countDocuments(query);
-    const pages = Math.ceil(total / limit);
+    const pages = Math.ceil(total / limitNum);
 
     res.json({
       registrations,
@@ -171,7 +175,7 @@ router.get('/registrations', adminAuth, async (req, res) => {
         total,
         pages,
         currentPage: parseInt(page),
-        limit: parseInt(limit)
+        limit: limitNum
       }
     });
   } catch (error) {
@@ -272,8 +276,7 @@ router.delete('/registrations/:id/reject', adminAuth, async (req, res) => {
         status: registration.status,
         rejectionReason: reason,
         rejectedAt: registration.rejectedAt
-      },
-      emailSent: emailResult.success
+      }
     });
   } catch (error) {
     console.error('❌ Error rejecting registration:', error);
@@ -317,25 +320,32 @@ router.delete('/registrations/:id', adminAuth, async (req, res) => {
 
 // ========== DASHBOARD STATS ROUTES ==========
 
-// GET /api/admin/stats - Get dashboard statistics
+// GET /api/admin/stats - Get dashboard statistics (optimized)
 router.get('/stats', adminAuth, async (req, res) => {
   try {
-    const stats = {
-      total: await Registration.countDocuments(),
-      pending: await Registration.countDocuments({ status: 'pending' }),
-      approved: await Registration.countDocuments({ status: 'approved' }),
-      rejected: await Registration.countDocuments({ status: 'rejected' })
-    };
+    // Use a single aggregation pipeline instead of multiple countDocuments calls
+    const stats = await Registration.aggregate([
+      {
+        $group: {
+          _id: null,
+          total: { $sum: 1 },
+          pending: {
+            $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] }
+          },
+          approved: {
+            $sum: { $cond: [{ $eq: ['$status', 'approved'] }, 1, 0] }
+          },
+          rejected: {
+            $sum: { $cond: [{ $eq: ['$status', 'rejected'] }, 1, 0] }
+          }
+        }
+      }
+    ]);
 
-    // Get recent registrations
-    const recentRegistrations = await Registration.find()
-      .sort({ registeredAt: -1 })
-      .limit(5)
-      .select('name status registeredAt');
+    const result = stats[0] || { total: 0, pending: 0, approved: 0, rejected: 0 };
 
     res.json({
-      stats,
-      recentRegistrations
+      stats: result
     });
   } catch (error) {
     console.error('❌ Error fetching stats:', error);

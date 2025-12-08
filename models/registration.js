@@ -59,4 +59,9 @@ const registrationSchema = new mongoose.Schema({
   }
 });
 
+// Add indexes for better query performance
+registrationSchema.index({ status: 1, registeredAt: -1 }); // For filtering by status
+registrationSchema.index({ name: 'text', email: 'text', aadharNumber: 'text' }); // For search
+registrationSchema.index({ registeredAt: -1 }); // For sorting by date
+
 module.exports = mongoose.model('Registration', registrationSchema);
