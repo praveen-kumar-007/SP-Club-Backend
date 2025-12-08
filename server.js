@@ -53,6 +53,18 @@ app.get('/', (req, res) => {
   res.send('SP Club Backend is running!');
 });
 
+// Email configuration test endpoint
+app.get('/api/test-email', (req, res) => {
+  const config = {
+    emailConfigured: !!process.env.EMAIL_USER && !!process.env.EMAIL_PASSWORD,
+    emailUser: process.env.EMAIL_USER ? 'Configured' : 'MISSING',
+    emailPassword: process.env.EMAIL_PASSWORD ? 'Configured' : 'MISSING',
+    nodeEnv: process.env.NODE_ENV || 'not set'
+  };
+  console.log('📧 Email Configuration Check:', config);
+  res.json(config);
+});
+
 app.use('/api/contact', contactRoutes);
 app.use('/api/register', registerRoutes);
 app.use('/api/admin', adminRoutes);

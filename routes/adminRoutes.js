@@ -201,6 +201,8 @@ router.get('/registrations/:id', adminAuth, async (req, res) => {
 // PUT /api/admin/registrations/:id/approve - Approve a registration
 router.put('/registrations/:id/approve', adminAuth, async (req, res) => {
   try {
+    console.log('🔄 Approval request received for registration ID:', req.params.id);
+    
     const registration = await Registration.findById(req.params.id);
 
     if (!registration) {
@@ -217,27 +219,31 @@ router.put('/registrations/:id/approve', adminAuth, async (req, res) => {
     registration.rejectionReason = null;
 
     await registration.save();
+    console.log('✅ Registration status updated to approved in database');
 
     // Send approval email notification
+    console.log('📧 Initiating email notification process...');
     const emailResult = await sendApprovalEmail(registration);
+    
     if (emailResult.success) {
-      console.log(`✅ Approval email sent to ${registration.email}`);
+      console.log(`✅ SUCCESS: Approval email sent to ${registration.email}`);
+      console.log(`   Message ID: ${emailResult.messageId}`);
     } else {
-      console.error(`❌ Failed to send approval email: ${emailResult.error}`);
-    }
-
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`✅ Registration approved: ${registration.name} (${registration.aadharNumber})`);
+      console.error(`❌ FAILED: Could not send approval email to ${registration.email}`);
+      console.error(`   Error: ${emailResult.error}`);
     }
 
     res.json({
-      message: 'Registration approved successfully and notification email sent',
+      message: emailResult.success 
+        ? 'Registration approved successfully and notification email sent' 
+        : 'Registration approved but email notification failed',
       registration,
-      emailSent: emailResult.success
+      emailSent: emailResult.success,
+      emailError: emailResult.success ? null : emailResult.error
     });
   } catch (error) {
     console.error('❌ Error approving registration:', error);
-    res.status(500).json({ message: 'Error approving registration' });
+    res.status(500).json({ message: 'Error approving registration', error: error.message });
   }
 });
 

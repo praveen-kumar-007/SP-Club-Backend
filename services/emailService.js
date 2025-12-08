@@ -1,18 +1,36 @@
 // services/emailService.js
 const nodemailer = require('nodemailer');
 
-// Create transporter using Gmail
+// Create transporter using Gmail with enhanced configuration
 const transporter = nodemailer.createTransport({
   service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false, // use TLS
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASSWORD
+  },
+  tls: {
+    rejectUnauthorized: false
+  }
+});
+
+// Verify transporter configuration on startup
+transporter.verify(function (error, success) {
+  if (error) {
+    console.error('❌ Email transporter verification failed:', error);
+  } else {
+    console.log('✅ Email server is ready to send messages');
   }
 });
 
 // Send registration approval email
 const sendApprovalEmail = async (registration) => {
   try {
+    console.log('📧 Attempting to send approval email to:', registration.email);
+    console.log('📧 Using email credentials:', process.env.EMAIL_USER ? 'Configured' : 'MISSING');
+    
     const mailOptions = {
       from: `"SP Club" <${process.env.EMAIL_USER}>`,
       to: registration.email,
@@ -101,11 +119,17 @@ const sendApprovalEmail = async (registration) => {
       `
     };
 
+    console.log('📧 Sending email with options:', { to: mailOptions.to, from: mailOptions.from, subject: mailOptions.subject });
     const info = await transporter.sendMail(mailOptions);
-    console.log('Approval email sent successfully:', info.messageId);
+    console.log('✅ Approval email sent successfully!');
+    console.log('   Message ID:', info.messageId);
+    console.log('   Response:', info.response);
     return { success: true, messageId: info.messageId };
   } catch (error) {
-    console.error('Error sending approval email:', error);
+    console.error('❌ Error sending approval email:');
+    console.error('   Error message:', error.message);
+    console.error('   Error code:', error.code);
+    console.error('   Full error:', error);
     return { success: false, error: error.message };
   }
 };
@@ -113,6 +137,8 @@ const sendApprovalEmail = async (registration) => {
 // Send registration rejection email
 const sendRejectionEmail = async (registration, reason = '') => {
   try {
+    console.log('📧 Attempting to send rejection email to:', registration.email);
+    
     const mailOptions = {
       from: `"SP Club" <${process.env.EMAIL_USER}>`,
       to: registration.email,
@@ -160,11 +186,17 @@ const sendRejectionEmail = async (registration, reason = '') => {
       `
     };
 
+    console.log('📧 Sending rejection email with options:', { to: mailOptions.to, from: mailOptions.from });
     const info = await transporter.sendMail(mailOptions);
-    console.log('Rejection email sent successfully:', info.messageId);
+    console.log('✅ Rejection email sent successfully!');
+    console.log('   Message ID:', info.messageId);
+    console.log('   Response:', info.response);
     return { success: true, messageId: info.messageId };
   } catch (error) {
-    console.error('Error sending rejection email:', error);
+    console.error('❌ Error sending rejection email:');
+    console.error('   Error message:', error.message);
+    console.error('   Error code:', error.code);
+    console.error('   Full error:', error);
     return { success: false, error: error.message };
   }
 };
