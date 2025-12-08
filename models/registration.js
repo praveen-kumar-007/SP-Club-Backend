@@ -7,7 +7,7 @@ const registrationSchema = new mongoose.Schema({
   fathersName: { type: String, required: true },
   email: { type: String, required: true },
   phone: { type: String },
-  phoneAlt: { type: String },
+  parentsPhone: { type: String },
   gender: { type: String, enum: ['male', 'female', 'other'], required: true },
   dob: { type: Date, required: true },
   bloodGroup: { type: String, enum: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'], required: true },
