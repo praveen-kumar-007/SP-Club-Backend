@@ -50,6 +50,7 @@ router.get('/admin', adminAuth, async (req, res) => {
 // PATCH /api/admin/contacts/:id - Mark contact as completed (admin only)
 router.patch('/admin/:id', adminAuth, async (req, res) => {
   try {
+    console.log('PATCH /admin/:id called with ID:', req.params.id);
     const { id } = req.params;
     const contact = await Contact.findByIdAndUpdate(
       id,
@@ -58,11 +59,14 @@ router.patch('/admin/:id', adminAuth, async (req, res) => {
     );
 
     if (!contact) {
+      console.log('Contact not found:', id);
       return res.status(404).json({ message: 'Contact not found' });
     }
 
+    console.log('Contact marked as completed:', contact);
     res.json({ message: 'Contact marked as completed', contact });
   } catch (error) {
+    console.error('PATCH contact error:', error);
     res.status(500).json({ message: error.message });
   }
 });

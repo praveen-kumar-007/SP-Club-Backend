@@ -51,6 +51,7 @@ router.get('/admin', adminAuth, async (req, res) => {
 // PATCH /api/newsletter/admin/:id - Mark as completed (admin only)
 router.patch('/admin/:id', adminAuth, async (req, res) => {
   try {
+    console.log('PATCH /admin/:id called with ID:', req.params.id);
     const { id } = req.params;
     const newsletter = await Newsletter.findByIdAndUpdate(
       id,
@@ -59,11 +60,14 @@ router.patch('/admin/:id', adminAuth, async (req, res) => {
     );
 
     if (!newsletter) {
+      console.log('Newsletter not found:', id);
       return res.status(404).json({ message: 'Newsletter not found' });
     }
 
+    console.log('Newsletter marked as completed:', newsletter);
     res.json({ message: 'Newsletter marked as completed', newsletter });
   } catch (error) {
+    console.error('PATCH error:', error);
     res.status(500).json({ message: error.message });
   }
 });
