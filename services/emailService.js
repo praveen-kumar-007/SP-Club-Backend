@@ -1,18 +1,15 @@
 // services/emailService.js
 const nodemailer = require('nodemailer');
 
-// Create transporter using Gmail with enhanced configuration
+// Create transporter using Gmail with configuration that works on Render
+// Render blocks port 587, so we use port 465 with SSL
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
   host: 'smtp.gmail.com',
-  port: 587,
-  secure: false, // use TLS
+  port: 465,
+  secure: true, // use SSL
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASSWORD
-  },
-  tls: {
-    rejectUnauthorized: false
   }
 });
 
