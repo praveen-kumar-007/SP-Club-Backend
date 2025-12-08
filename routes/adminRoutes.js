@@ -231,7 +231,7 @@ router.put('/registrations/:id/approve', adminAuth, async (req, res) => {
   }
 });
 
-// DELETE /api/admin/registrations/:id/reject - Reject and permanently delete a registration
+// DELETE /api/admin/registrations/:id/reject - Reject a registration (keep in database)
 router.delete('/registrations/:id/reject', adminAuth, async (req, res) => {
   try {
     console.log('DELETE reject endpoint hit - ID:', req.params.id);
@@ -255,22 +255,24 @@ router.delete('/registrations/:id/reject', adminAuth, async (req, res) => {
       return res.status(400).json({ message: 'Registration is already rejected' });
     }
 
-    // Store details before deletion for logging
-    const registrationName = registration.name;
-    const registrationEmail = registration.email;
-    const registrationAadhar = registration.aadharNumber;
-
-    // Permanently delete the registration from database
-    await Registration.findByIdAndDelete(req.params.id);
-    console.log('Registration deleted successfully');
+    // Update status to rejected (keep in database)
+    registration.status = 'rejected';
+    registration.rejectionReason = reason;
+    registration.rejectedAt = new Date();
+    await registration.save();
+    
+    console.log('Registration marked as rejected (stored in database)');
 
     res.json({
-      message: 'Registration rejected and permanently removed from database',
-      deletedRegistration: {
-        name: registrationName,
-        email: registrationEmail,
-        aadharNumber: registrationAadhar,
-        rejectionReason: reason
+      message: 'Registration rejected and stored',
+      registration: {
+        id: registration._id,
+        name: registration.name,
+        email: registration.email,
+        aadharNumber: registration.aadharNumber,
+        status: registration.status,
+        rejectionReason: reason,
+        rejectedAt: registration.rejectedAt
       }
     });
   } catch (error) {

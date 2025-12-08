@@ -48,6 +48,10 @@ const registrationSchema = new mongoose.Schema({
     type: Date,
     default: null 
   },
+  rejectedAt: { 
+    type: Date,
+    default: null 
+  },
   rejectionReason: { 
     type: String,
     default: null 
