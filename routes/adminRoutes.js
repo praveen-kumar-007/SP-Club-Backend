@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const Admin = require('../models/admin');
 const Registration = require('../models/registration');
 const { adminAuth, checkPermission } = require('../middleware/adminAuth');
+const { sendApprovalEmail, sendRejectionEmail } = require('../services/emailService');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'sp_club_admin_secret_key_2024';
 
@@ -217,13 +218,22 @@ router.put('/registrations/:id/approve', adminAuth, async (req, res) => {
 
     await registration.save();
 
+    // Send approval email notification
+    const emailResult = await sendApprovalEmail(registration);
+    if (emailResult.success) {
+      console.log(`✅ Approval email sent to ${registration.email}`);
+    } else {
+      console.error(`❌ Failed to send approval email: ${emailResult.error}`);
+    }
+
     if (process.env.NODE_ENV === 'development') {
       console.log(`✅ Registration approved: ${registration.name} (${registration.aadharNumber})`);
     }
 
     res.json({
-      message: 'Registration approved successfully',
-      registration
+      message: 'Registration approved successfully and notification email sent',
+      registration,
+      emailSent: emailResult.success
     });
   } catch (error) {
     console.error('❌ Error approving registration:', error);
@@ -263,8 +273,16 @@ router.delete('/registrations/:id/reject', adminAuth, async (req, res) => {
     
     console.log('Registration marked as rejected (stored in database)');
 
+    // Send rejection email notification
+    const emailResult = await sendRejectionEmail(registration, reason);
+    if (emailResult.success) {
+      console.log(`✅ Rejection email sent to ${registration.email}`);
+    } else {
+      console.error(`❌ Failed to send rejection email: ${emailResult.error}`);
+    }
+
     res.json({
-      message: 'Registration rejected and stored',
+      message: 'Registration rejected and notification email sent',
       registration: {
         id: registration._id,
         name: registration.name,
@@ -273,7 +291,8 @@ router.delete('/registrations/:id/reject', adminAuth, async (req, res) => {
         status: registration.status,
         rejectionReason: reason,
         rejectedAt: registration.rejectedAt
-      }
+      },
+      emailSent: emailResult.success
     });
   } catch (error) {
     console.error('❌ Error rejecting registration:', error);
