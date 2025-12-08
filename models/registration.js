@@ -14,6 +14,8 @@ const registrationSchema = new mongoose.Schema({
   // Address & Identification
   address: { type: String },
   aadharNumber: { type: String, required: true, unique: true }, // Aadhar should be unique
+  aadharFront: { type: String, required: true }, // Path to uploaded Aadhar front image
+  aadharBack: { type: String, required: true }, // Path to uploaded Aadhar back image
   
   // Sports & Role
   role: { type: String, required: true },

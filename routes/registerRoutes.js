@@ -5,12 +5,16 @@ const { upload } = require('../config/cloudinary');
 const Registration = require('../models/registration'); // Import the Registration model
 
 // POST /api/register - Submit a new registration
-router.post('/', upload.single('photo'), async (req, res) => {
+router.post('/', upload.fields([
+  { name: 'photo', maxCount: 1 },
+  { name: 'aadharFront', maxCount: 1 },
+  { name: 'aadharBack', maxCount: 1 }
+]), async (req, res) => {
   try {
     if (process.env.NODE_ENV === 'development') {
       console.log('=== Registration Request Received ===');
       console.log('Body:', req.body);
-      console.log('File:', req.file);
+      console.log('Files:', req.files);
     }
     
     const {
@@ -35,6 +39,17 @@ router.post('/', upload.single('photo'), async (req, res) => {
       return res.status(400).json({ message: 'You must agree to the terms and conditions.' });
     }
 
+    // Validate file uploads
+    if (!req.files || !req.files['photo'] || req.files['photo'].length === 0) {
+      return res.status(400).json({ message: 'Photo is required.' });
+    }
+    if (!req.files['aadharFront'] || req.files['aadharFront'].length === 0) {
+      return res.status(400).json({ message: 'Aadhar front image is required.' });
+    }
+    if (!req.files['aadharBack'] || req.files['aadharBack'].length === 0) {
+      return res.status(400).json({ message: 'Aadhar back image is required.' });
+    }
+
     // Check if Aadhar number already exists
     const existingRegistration = await Registration.findOne({ aadharNumber });
     if (existingRegistration) {
@@ -44,7 +59,10 @@ router.post('/', upload.single('photo'), async (req, res) => {
     const newRegistration = new Registration({
       name, fathersName, email, phone, gender, dob, bloodGroup,
       role, ageGroup, experience, address, aadharNumber, clubDetails,
-      message, photo: req.file ? req.file.path : null, // Store Cloudinary URL
+      message,
+      photo: req.files['photo'][0].path, // Store Cloudinary URL for photo
+      aadharFront: req.files['aadharFront'][0].path, // Store Cloudinary URL for Aadhar front
+      aadharBack: req.files['aadharBack'][0].path, // Store Cloudinary URL for Aadhar back
       kabaddiPositions, newsletter, terms
     });
 
