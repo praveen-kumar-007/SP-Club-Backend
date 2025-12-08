@@ -5,7 +5,6 @@ const jwt = require('jsonwebtoken');
 const Admin = require('../models/admin');
 const Registration = require('../models/registration');
 const { adminAuth, checkPermission } = require('../middleware/adminAuth');
-const { sendApprovalEmail, sendRejectionEmail } = require('../services/emailService');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'sp_club_admin_secret_key_2024';
 
@@ -221,25 +220,9 @@ router.put('/registrations/:id/approve', adminAuth, async (req, res) => {
     await registration.save();
     console.log('✅ Registration status updated to approved in database');
 
-    // Send approval email notification
-    console.log('📧 Initiating email notification process...');
-    const emailResult = await sendApprovalEmail(registration);
-    
-    if (emailResult.success) {
-      console.log(`✅ SUCCESS: Approval email sent to ${registration.email}`);
-      console.log(`   Message ID: ${emailResult.messageId}`);
-    } else {
-      console.error(`❌ FAILED: Could not send approval email to ${registration.email}`);
-      console.error(`   Error: ${emailResult.error}`);
-    }
-
     res.json({
-      message: emailResult.success 
-        ? 'Registration approved successfully and notification email sent' 
-        : 'Registration approved but email notification failed',
-      registration,
-      emailSent: emailResult.success,
-      emailError: emailResult.success ? null : emailResult.error
+      message: 'Registration approved successfully',
+      registration
     });
   } catch (error) {
     console.error('❌ Error approving registration:', error);
@@ -279,16 +262,8 @@ router.delete('/registrations/:id/reject', adminAuth, async (req, res) => {
     
     console.log('Registration marked as rejected (stored in database)');
 
-    // Send rejection email notification
-    const emailResult = await sendRejectionEmail(registration, reason);
-    if (emailResult.success) {
-      console.log(`✅ Rejection email sent to ${registration.email}`);
-    } else {
-      console.error(`❌ Failed to send rejection email: ${emailResult.error}`);
-    }
-
     res.json({
-      message: 'Registration rejected and notification email sent',
+      message: 'Registration rejected successfully',
       registration: {
         id: registration._id,
         name: registration.name,
