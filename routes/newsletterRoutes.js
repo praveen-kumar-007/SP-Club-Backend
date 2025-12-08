@@ -2,7 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const Newsletter = require('../models/newsletter');
-const adminAuth = require('../middleware/adminAuth');
+const { adminAuth } = require('../middleware/adminAuth');
 
 // Subscribe to newsletter
 router.post('/subscribe', async (req, res) => {

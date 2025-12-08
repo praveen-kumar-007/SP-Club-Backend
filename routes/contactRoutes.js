@@ -2,7 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const Contact = require('../models/contact'); // Import the Contact model
-const adminAuth = require('../middleware/adminAuth');
+const { adminAuth } = require('../middleware/adminAuth');
 
 // POST /api/contact - Submit a new contact message
 router.post('/', async (req, res) => {
