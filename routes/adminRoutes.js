@@ -112,6 +112,14 @@ router.post('/login', async (req, res) => {
       admin.activeSessions = [];
     }
 
+    // Prune stale sessions older than inactivity window (5 minutes)
+    const INACTIVITY_MS = 5 * 60 * 1000; // align with frontend session
+    const now = Date.now();
+    admin.activeSessions = admin.activeSessions.filter(s => {
+      const last = new Date(s.lastActivityTime || s.loginTime).getTime();
+      return now - last < INACTIVITY_MS;
+    });
+
     // Check if device already has an active session
     const existingSessionIndex = admin.activeSessions.findIndex(s => s.deviceId === deviceId);
     

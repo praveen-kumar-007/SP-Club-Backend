@@ -1,5 +1,6 @@
 // middleware/adminAuth.js
 const jwt = require('jsonwebtoken');
+const Admin = require('../models/admin');
 
 const adminAuth = (req, res, next) => {
   try {
@@ -14,6 +15,23 @@ const adminAuth = (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'sp_club_admin_secret_key_2024');
     req.adminId = decoded.id;
     req.admin = decoded;
+
+    // Update server-side lastActivityTime for this device session
+    // Non-blocking; fire-and-forget
+    const deviceId = decoded.deviceId;
+    if (deviceId && decoded.id) {
+      Admin.findById(decoded.id)
+        .then(admin => {
+          if (!admin || !admin.activeSessions) return;
+          const idx = admin.activeSessions.findIndex(s => s.deviceId === deviceId);
+          if (idx !== -1) {
+            admin.activeSessions[idx].lastActivityTime = new Date();
+            return admin.save();
+          }
+        })
+        .catch(() => {});
+    }
+
     next();
   } catch (error) {
     console.error('Token verification error:', error.message);
