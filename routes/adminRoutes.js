@@ -641,43 +641,6 @@ router.post('/registrations/bulk-update', adminAuth, async (req, res) => {
 
 // ========== STATISTICS & ANALYTICS ==========
 
-// GET /api/admin/filter-options - Get unique values for filter dropdowns
-router.get('/filter-options', adminAuth, async (req, res) => {
-  try {
-    // Get distinct values from the database
-    const roles = await Registration.distinct('role');
-    const ageGroups = await Registration.distinct('ageGroup');
-    const experienceLevels = await Registration.distinct('experience');
-
-    // Map to format expected by frontend
-    const roleOptions = roles.filter(r => r).map(role => ({
-      value: role,
-      label: role.charAt(0).toUpperCase() + role.slice(1) // Capitalize first letter
-    }));
-
-    const ageGroupOptions = ageGroups.filter(a => a).map(age => ({
-      value: age,
-      label: age === 'under18' ? 'Under 18' : 
-             age === 'above45' ? 'Above 45' : 
-             age.replace('-', ' to ') // Convert "18-25" to "18 to 25"
-    }));
-
-    const experienceOptions = experienceLevels.filter(e => e).map(exp => ({
-      value: exp,
-      label: exp.charAt(0).toUpperCase() + exp.slice(1) // Capitalize first letter
-    }));
-
-    res.json({
-      roles: roleOptions,
-      ageGroups: ageGroupOptions,
-      experiences: experienceOptions
-    });
-  } catch (error) {
-    console.error('❌ Filter options error:', error);
-    res.status(500).json({ message: 'Error fetching filter options' });
-  }
-});
-
 // GET /api/admin/statistics - Get dashboard statistics
 router.get('/statistics', adminAuth, async (req, res) => {
   try {
