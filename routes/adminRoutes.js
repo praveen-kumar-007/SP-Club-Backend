@@ -166,9 +166,38 @@ router.post('/login', async (req, res) => {
 });
 
 // POST /api/admin/logout - Admin logout (optional - mainly for frontend)
-router.post('/logout', adminAuth, (req, res) => {
-  // JWT logout is handled on frontend by removing token
-  res.json({ message: 'Logged out successfully' });
+router.post('/logout', adminAuth, async (req, res) => {
+  try {
+    const { deviceId } = req.body;
+    const adminId = req.admin.id;
+
+    // Find admin and remove the device session
+    const admin = await Admin.findById(adminId);
+    if (!admin) {
+      return res.status(404).json({ message: 'Admin not found' });
+    }
+
+    if (!admin.activeSessions) {
+      admin.activeSessions = [];
+    }
+
+    // Remove the session for this device
+    admin.activeSessions = admin.activeSessions.filter(s => s.deviceId !== deviceId);
+    await admin.save();
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`✅ Admin logged out: ${admin.username} from device: ${deviceId}`);
+      console.log(`   Remaining active sessions: ${admin.activeSessions.length}/2`);
+    }
+
+    res.json({ 
+      message: 'Logged out successfully',
+      remainingSessions: admin.activeSessions.length
+    });
+  } catch (error) {
+    console.error('❌ Logout error:', error);
+    res.status(500).json({ message: 'Error logging out' });
+  }
 });
 
 // ========== REGISTRATION MANAGEMENT ROUTES ==========
