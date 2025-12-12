@@ -114,19 +114,27 @@ router.post('/login', async (req, res) => {
 
     // Check if device already has an active session
     const existingSessionIndex = admin.activeSessions.findIndex(s => s.deviceId === deviceId);
+    
+    // If this is a NEW device (not already logged in) and already 2 sessions active, REJECT
+    if (existingSessionIndex === -1 && admin.activeSessions.length >= 2) {
+      return res.status(429).json({ 
+        message: 'Maximum 2 devices allowed. Please logout from another device first.',
+        activeSessions: admin.activeSessions.length,
+        maxDevices: 2,
+        currentDevices: admin.activeSessions.map(s => ({
+          deviceName: s.deviceName,
+          loginTime: s.loginTime
+        }))
+      });
+    }
+
     if (existingSessionIndex !== -1) {
-      // Update existing device session
+      // Update existing device session (re-login on same device is allowed)
       admin.activeSessions[existingSessionIndex].token = token;
       admin.activeSessions[existingSessionIndex].loginTime = new Date();
       admin.activeSessions[existingSessionIndex].lastActivityTime = new Date();
     } else {
       // Add new device session
-      // If already 2 devices active, remove the oldest one
-      if (admin.activeSessions.length >= 2) {
-        admin.activeSessions.sort((a, b) => new Date(a.loginTime) - new Date(b.loginTime));
-        admin.activeSessions.shift(); // Remove oldest session
-      }
-
       admin.activeSessions.push({
         deviceId: deviceId || `device_${Date.now()}`,
         deviceName: deviceName || 'Unknown Device',
