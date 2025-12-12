@@ -227,17 +227,18 @@ router.get('/registrations', adminAuth, async (req, res) => {
       query.$or = [
         { name: { $regex: search, $options: 'i' } },
         { email: { $regex: search, $options: 'i' } },
-        { aadharNumber: { $regex: search, $options: 'i' } }
+        { aadharNumber: { $regex: search, $options: 'i' } },
+        { phone: { $regex: search, $options: 'i' } },
+        { fathersName: { $regex: search, $options: 'i' } }
       ];
     }
 
     const skip = (page - 1) * limit;
     const limitNum = Math.min(parseInt(limit) || 10, 100); // Cap limit at 100
     
-    // Optimize: Only fetch needed fields to reduce data transfer & improve performance
+    // Fetch all fields for admin (they need complete data)
     // Use lean() for faster queries (returns plain objects, not mongoose docs)
     const registrations = await Registration.find(query)
-      .select('_id name email phone parentsPhone role bloodGroup status photo registeredAt aadharNumber')
       .sort({ registeredAt: -1 })
       .skip(skip)
       .limit(limitNum)
@@ -553,6 +554,51 @@ router.delete('/newsletter/:id', adminAuth, async (req, res) => {
 });
 
 // ========== BULK OPERATIONS ==========
+
+// GET /api/admin/registrations/export - Export all registrations with filters for CSV
+router.get('/registrations/export', adminAuth, async (req, res) => {
+  try {
+    const { status = 'all', search = '', ageGroup = '', role = '', experience = '' } = req.query;
+
+    let query = {};
+    
+    // Filter by status
+    if (status && status !== 'all') {
+      query.status = status;
+    }
+
+    // Search filter
+    if (search) {
+      query.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } },
+        { aadharNumber: { $regex: search, $options: 'i' } },
+        { phone: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    // Advanced filters
+    if (ageGroup && ageGroup !== 'all') {
+      query.ageGroup = ageGroup;
+    }
+    if (role && role !== 'all') {
+      query.role = role;
+    }
+    if (experience && experience !== 'all') {
+      query.experience = experience;
+    }
+
+    // Fetch all matching registrations (no pagination for export)
+    const registrations = await Registration.find(query)
+      .sort({ registeredAt: -1 })
+      .lean();
+
+    res.json({ registrations });
+  } catch (error) {
+    console.error('❌ Export error:', error);
+    res.status(500).json({ message: 'Error fetching registrations for export' });
+  }
+});
 
 // POST /api/admin/registrations/bulk-update - Bulk approve/reject registrations
 router.post('/registrations/bulk-update', adminAuth, async (req, res) => {
