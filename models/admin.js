@@ -42,7 +42,16 @@ const adminSchema = new mongoose.Schema({
     canReject: { type: Boolean, default: true },
     canDelete: { type: Boolean, default: false },
     canManageAdmins: { type: Boolean, default: false }
-  }
+  },
+  activeSessions: [
+    {
+      deviceId: String,
+      deviceName: String,
+      token: String,
+      loginTime: { type: Date, default: Date.now },
+      lastActivityTime: { type: Date, default: Date.now }
+    }
+  ]
 });
 
 // Hash password before saving

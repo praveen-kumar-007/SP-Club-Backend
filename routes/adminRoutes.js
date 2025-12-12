@@ -71,7 +71,7 @@ router.post('/register', async (req, res) => {
 // POST /api/admin/login - Admin login
 router.post('/login', async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const { username, password, deviceId, deviceName } = req.body;
 
     if (!username || !password) {
       return res.status(400).json({ message: 'Username and password are required' });
@@ -93,10 +93,6 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    // Update last login
-    admin.lastLogin = new Date();
-    await admin.save();
-
     // Generate JWT token
     const token = jwt.sign(
       {
@@ -104,20 +100,56 @@ router.post('/login', async (req, res) => {
         username: admin.username,
         email: admin.email,
         role: admin.role,
-        permissions: admin.permissions
+        permissions: admin.permissions,
+        deviceId: deviceId || 'unknown'
       },
       JWT_SECRET,
       { expiresIn: '24h' }
     );
 
+    // Initialize activeSessions if not exists
+    if (!admin.activeSessions) {
+      admin.activeSessions = [];
+    }
+
+    // Check if device already has an active session
+    const existingSessionIndex = admin.activeSessions.findIndex(s => s.deviceId === deviceId);
+    if (existingSessionIndex !== -1) {
+      // Update existing device session
+      admin.activeSessions[existingSessionIndex].token = token;
+      admin.activeSessions[existingSessionIndex].loginTime = new Date();
+      admin.activeSessions[existingSessionIndex].lastActivityTime = new Date();
+    } else {
+      // Add new device session
+      // If already 2 devices active, remove the oldest one
+      if (admin.activeSessions.length >= 2) {
+        admin.activeSessions.sort((a, b) => new Date(a.loginTime) - new Date(b.loginTime));
+        admin.activeSessions.shift(); // Remove oldest session
+      }
+
+      admin.activeSessions.push({
+        deviceId: deviceId || `device_${Date.now()}`,
+        deviceName: deviceName || 'Unknown Device',
+        token: token,
+        loginTime: new Date(),
+        lastActivityTime: new Date()
+      });
+    }
+
+    // Update last login
+    admin.lastLogin = new Date();
+    await admin.save();
+
     if (process.env.NODE_ENV === 'development') {
-      console.log(`✅ Admin logged in: ${username}`);
+      console.log(`✅ Admin logged in: ${username} from device: ${deviceName || 'Unknown'}`);
+      console.log(`   Active sessions: ${admin.activeSessions.length}/2`);
     }
 
     res.json({
       message: 'Login successful',
       token,
-      admin: admin.toJSON()
+      admin: admin.toJSON(),
+      activeSessions: admin.activeSessions.length
     });
   } catch (error) {
     console.error('❌ Login error:', error);
