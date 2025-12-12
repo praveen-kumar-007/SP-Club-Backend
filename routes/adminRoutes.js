@@ -552,4 +552,173 @@ router.delete('/newsletter/:id', adminAuth, async (req, res) => {
   }
 });
 
+// ========== BULK OPERATIONS ==========
+
+// POST /api/admin/registrations/bulk-update - Bulk approve/reject registrations
+router.post('/registrations/bulk-update', adminAuth, async (req, res) => {
+  try {
+    const { ids, action } = req.body; // action: 'approve' or 'reject'
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: 'No registration IDs provided' });
+    }
+
+    if (!['approve', 'reject'].includes(action)) {
+      return res.status(400).json({ message: 'Invalid action. Must be "approve" or "reject"' });
+    }
+
+    const status = action === 'approve' ? 'approved' : 'rejected';
+    const updateData = {
+      status,
+      approvedBy: req.admin.id,
+      approvedAt: new Date()
+    };
+
+    const result = await Registration.updateMany(
+      { _id: { $in: ids } },
+      { $set: updateData }
+    );
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`✅ Bulk ${action}: ${result.modifiedCount} registrations updated`);
+    }
+
+    res.json({
+      message: `Successfully ${action}ed ${result.modifiedCount} registration(s)`,
+      updated: result.modifiedCount
+    });
+  } catch (error) {
+    console.error('❌ Bulk update error:', error);
+    res.status(500).json({ message: 'Error updating registrations' });
+  }
+});
+
+// ========== STATISTICS & ANALYTICS ==========
+
+// GET /api/admin/statistics - Get dashboard statistics
+router.get('/statistics', adminAuth, async (req, res) => {
+  try {
+    // Total counts by status
+    const totalPending = await Registration.countDocuments({ status: 'pending' });
+    const totalApproved = await Registration.countDocuments({ status: 'approved' });
+    const totalRejected = await Registration.countDocuments({ status: 'rejected' });
+    const totalRegistrations = totalPending + totalApproved + totalRejected;
+
+    // Registrations by month (last 6 months)
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+    const monthlyData = await Registration.aggregate([
+      {
+        $match: {
+          registeredAt: { $gte: sixMonthsAgo }
+        }
+      },
+      {
+        $group: {
+          _id: {
+            year: { $year: '$registeredAt' },
+            month: { $month: '$registeredAt' }
+          },
+          count: { $sum: 1 },
+          approved: {
+            $sum: { $cond: [{ $eq: ['$status', 'approved'] }, 1, 0] }
+          },
+          rejected: {
+            $sum: { $cond: [{ $eq: ['$status', 'rejected'] }, 1, 0] }
+          },
+          pending: {
+            $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] }
+          }
+        }
+      },
+      {
+        $sort: { '_id.year': 1, '_id.month': 1 }
+      }
+    ]);
+
+    // Most popular positions
+    const popularPositions = await Registration.aggregate([
+      {
+        $match: { kabaddiPositions: { $exists: true, $ne: [] } }
+      },
+      {
+        $unwind: '$kabaddiPositions'
+      },
+      {
+        $group: {
+          _id: '$kabaddiPositions',
+          count: { $sum: 1 }
+        }
+      },
+      {
+        $sort: { count: -1 }
+      },
+      {
+        $limit: 10
+      }
+    ]);
+
+    // Age group distribution
+    const ageGroupStats = await Registration.aggregate([
+      {
+        $match: { ageGroup: { $exists: true } }
+      },
+      {
+        $group: {
+          _id: '$ageGroup',
+          count: { $sum: 1 }
+        }
+      },
+      {
+        $sort: { _id: 1 }
+      }
+    ]);
+
+    // Role distribution
+    const roleStats = await Registration.aggregate([
+      {
+        $group: {
+          _id: '$role',
+          count: { $sum: 1 }
+        }
+      },
+      {
+        $sort: { count: -1 }
+      }
+    ]);
+
+    // Approval rate
+    const approvalRate = totalRegistrations > 0 
+      ? ((totalApproved / totalRegistrations) * 100).toFixed(1)
+      : 0;
+
+    res.json({
+      summary: {
+        total: totalRegistrations,
+        pending: totalPending,
+        approved: totalApproved,
+        rejected: totalRejected,
+        approvalRate: parseFloat(approvalRate)
+      },
+      monthlyRegistrations: monthlyData,
+      popularPositions: popularPositions.map(p => ({
+        position: p._id,
+        count: p.count
+      })),
+      ageGroups: ageGroupStats.map(a => ({
+        ageGroup: a._id,
+        count: a.count
+      })),
+      roles: roleStats.map(r => ({
+        role: r._id,
+        count: r.count
+      }))
+    });
+  } catch (error) {
+    console.error('❌ Statistics error:', error);
+    res.status(500).json({ message: 'Error fetching statistics' });
+  }
+});
+
 module.exports = router;
