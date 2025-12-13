@@ -552,4 +552,24 @@ router.delete('/newsletter/:id', adminAuth, async (req, res) => {
   }
 });
 
+// ========== DEBUG ROUTES ==========
+
+// GET /api/admin/debug - Check admin count and details
+router.get('/debug', async (req, res) => {
+  try {
+    const adminCount = await Admin.countDocuments();
+    const admins = await Admin.find({}).select('username email role isActive createdAt');
+    const registrationCount = await Registration.countDocuments();
+
+    res.json({
+      adminCount,
+      admins,
+      registrationCount,
+      message: `Found ${adminCount} admins and ${registrationCount} registrations`
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Debug error', error: error.message });
+  }
+});
+
 module.exports = router;
