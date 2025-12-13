@@ -30,6 +30,9 @@ app.use(cors({
     } else if (origin.endsWith('.onrender.com')) {
       // Allow Render preview domains explicitly to avoid CORS blocks during deployments
       callback(null, true);
+    } else if (origin.endsWith('.vercel.app')) {
+      // Allow Vercel preview/production domains
+      callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
     }
