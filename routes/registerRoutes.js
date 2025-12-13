@@ -11,12 +11,6 @@ router.post('/', upload.fields([
   { name: 'aadharBack', maxCount: 1 }
 ]), async (req, res) => {
   try {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('=== Registration Request Received ===');
-      console.log('Body:', req.body);
-      console.log('Files:', req.files);
-    }
-    
     const {
       name, fathersName, email, phone, gender, dob, bloodGroup,
       role, ageGroup, experience, address, aadharNumber, clubDetails,
