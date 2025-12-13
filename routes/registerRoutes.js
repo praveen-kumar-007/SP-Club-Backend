@@ -12,7 +12,7 @@ router.post('/', upload.fields([
 ]), async (req, res) => {
   try {
     const {
-      name, fathersName, email, phone, gender, dob, bloodGroup,
+      name, fathersName, email, phone, parentsPhone, gender, dob, bloodGroup,
       role, experience, address, aadharNumber, clubDetails,
       message, newsletter, terms
     } = req.body;
@@ -51,7 +51,7 @@ router.post('/', upload.fields([
     }
 
     const newRegistration = new Registration({
-      name, fathersName, email, phone, gender, dob, bloodGroup,
+      name, fathersName, email, phone, parentsPhone, gender, dob, bloodGroup,
       role, experience, address, aadharNumber, clubDetails,
       message,
       photo: req.files['photo'][0].path,
