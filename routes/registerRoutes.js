@@ -13,7 +13,7 @@ router.post('/', upload.fields([
   try {
     const {
       name, fathersName, email, phone, gender, dob, bloodGroup,
-      role, ageGroup, experience, address, aadharNumber, clubDetails,
+      role, experience, address, aadharNumber, clubDetails,
       message, newsletter, terms
     } = req.body;
 
@@ -52,11 +52,11 @@ router.post('/', upload.fields([
 
     const newRegistration = new Registration({
       name, fathersName, email, phone, gender, dob, bloodGroup,
-      role, ageGroup, experience, address, aadharNumber, clubDetails,
+      role, experience, address, aadharNumber, clubDetails,
       message,
-      photo: req.files['photo'][0].path, // Store Cloudinary URL for photo
-      aadharFront: req.files['aadharFront'][0].path, // Store Cloudinary URL for Aadhar front
-      aadharBack: req.files['aadharBack'][0].path, // Store Cloudinary URL for Aadhar back
+      photo: req.files['photo'][0].path,
+      aadharFront: req.files['aadharFront'][0].path,
+      aadharBack: req.files['aadharBack'][0].path,
       kabaddiPositions, newsletter, terms
     });
 
