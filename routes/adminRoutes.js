@@ -213,13 +213,55 @@ router.post('/logout', adminAuth, async (req, res) => {
 // GET /api/admin/registrations - Fetch registrations with pagination and filters (optimized)
 router.get('/registrations', adminAuth, async (req, res) => {
   try {
-    const { status = 'pending', page = 1, limit = 10, search = '' } = req.query;
+    const { status = 'pending', page = 1, limit = 10, search = '', ageGroup = 'all' } = req.query;
 
     let query = {};
     
     // Filter by status
     if (status && status !== 'all') {
       query.status = status;
+    }
+
+    // Filter by computed age group via DOB
+    if (ageGroup && ageGroup !== 'all') {
+      const today = new Date();
+      const start = new Date(today);
+      const end = new Date(today);
+
+      const setRange = (minAge, maxAgeExclusive) => {
+        const maxDate = new Date(today);
+        maxDate.setFullYear(today.getFullYear() - minAge);
+        const minDate = new Date(today);
+        minDate.setFullYear(today.getFullYear() - maxAgeExclusive);
+        return { $gte: minDate, $lt: maxDate };
+      };
+
+      switch (ageGroup) {
+        case 'Under 10':
+          query.dob = setRange(0, 10);
+          break;
+        case '10-14':
+          query.dob = setRange(10, 14);
+          break;
+        case '14-16':
+          query.dob = setRange(14, 16);
+          break;
+        case '16-19':
+          query.dob = setRange(16, 19);
+          break;
+        case '19-25':
+          query.dob = setRange(19, 25);
+          break;
+        case 'Over 25':
+          // Anyone older than or equal to 25
+          const cutoff = new Date(today);
+          cutoff.setFullYear(today.getFullYear() - 25);
+          query.dob = { $lt: cutoff };
+          break;
+        default:
+          // ignore unknown ageGroup
+          break;
+      }
     }
 
     // Search by name or email
@@ -237,7 +279,7 @@ router.get('/registrations', adminAuth, async (req, res) => {
     // Optimize: Only fetch needed fields to reduce data transfer & improve performance
     // Use lean() for faster queries (returns plain objects, not mongoose docs)
     const registrations = await Registration.find(query)
-      .select('_id name email phone parentsPhone role bloodGroup status photo registeredAt aadharNumber')
+      .select('_id name email phone parentsPhone role bloodGroup status photo registeredAt aadharNumber dob')
       .sort({ registeredAt: -1 })
       .skip(skip)
       .limit(limitNum)
