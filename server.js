@@ -51,6 +51,7 @@ const contactRoutes = require('./routes/contactRoutes');
 const registerRoutes = require('./routes/registerRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const newsletterRoutes = require('./routes/newsletterRoutes');
+const newsRoutes = require('./routes/newsRoutes');
 
 // MongoDB Connection
 mongoose.connect(process.env.MONGO_URI)
@@ -66,6 +67,7 @@ app.use('/api/contact', contactRoutes);
 app.use('/api/register', registerRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/newsletter', newsletterRoutes);
+app.use('/api/news', newsRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
