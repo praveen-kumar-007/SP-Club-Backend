@@ -594,4 +594,209 @@ router.delete('/newsletter/:id', adminAuth, async (req, res) => {
   }
 });
 
+// ========== ID CARD GENERATION ROUTES ==========
+
+// Helper function to generate unique ID card number
+async function generateUniqueIdCardNumber() {
+  let idCardNumber;
+  let isUnique = false;
+  
+  // Generate random 4-digit ID until we find a unique one
+  while (!isUnique) {
+    const randomNum = Math.floor(Math.random() * 9000) + 1000; // 4-digit random number (1000-9999)
+    idCardNumber = `SPKG-${String(randomNum).padStart(4, '0')}`;
+    
+    // Check if this ID already exists
+    const existing = await Registration.findOne({ idCardNumber });
+    if (!existing) {
+      isUnique = true;
+    }
+  }
+  
+  return idCardNumber;
+}
+
+// POST /api/admin/registrations/:id/generate-id - Generate ID card number for approved registration
+router.post('/registrations/:id/generate-id', adminAuth, async (req, res) => {
+  try {
+    const { customIdNumber, idCardRole } = req.body; // Admin can optionally provide custom ID and role
+    
+    const registration = await Registration.findById(req.params.id);
+
+    if (!registration) {
+      return res.status(404).json({ message: 'Registration not found' });
+    }
+
+    // Check if registration is approved
+    if (registration.status !== 'approved') {
+      return res.status(400).json({ 
+        message: 'Only approved registrations can have ID cards generated' 
+      });
+    }
+
+    // Check if ID card already generated
+    if (registration.idCardNumber) {
+      return res.status(400).json({ 
+        message: 'ID card already generated for this registration',
+        idCardNumber: registration.idCardNumber
+      });
+    }
+
+    let idCardNumber;
+    
+    // If admin provided custom ID, validate and use it
+    if (customIdNumber && customIdNumber.trim()) {
+      const trimmedId = customIdNumber.trim();
+      
+      // Check if custom ID already exists
+      const existingWithCustomId = await Registration.findOne({ 
+        idCardNumber: trimmedId 
+      });
+      
+      if (existingWithCustomId) {
+        return res.status(400).json({ 
+          message: 'This ID number is already assigned to another member' 
+        });
+      }
+      
+      idCardNumber = trimmedId;
+    } else {
+      // Generate random unique ID
+      idCardNumber = await generateUniqueIdCardNumber();
+    }
+
+    // Update registration with ID card details
+    registration.idCardNumber = idCardNumber;
+    registration.idCardGeneratedAt = new Date();
+    registration.idCardGeneratedBy = req.adminId;
+    // Store admin-assigned role for ID card, fallback to registration.role if not set
+    registration.idCardRole = (idCardRole && idCardRole.trim()) ? idCardRole.trim() : registration.role;
+
+    await registration.save();
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`✅ ID Card generated: ${idCardNumber} for ${registration.name} (${customIdNumber ? 'Custom' : 'Random'}) | Role: ${registration.idCardRole}`);
+    }
+
+    res.json({
+      message: 'ID card generated successfully',
+      idCardNumber,
+      type: customIdNumber ? 'custom' : 'random',
+      registration
+    });
+  } catch (error) {
+    console.error('❌ Error generating ID card:', error);
+    res.status(500).json({ message: 'Error generating ID card' });
+  }
+});
+
+// GET /api/admin/id-cards - Get all registrations with ID cards
+router.get('/id-cards', adminAuth, async (req, res) => {
+  try {
+    const { page = 1, limit = 10, search = '' } = req.query;
+
+    let query = { idCardNumber: { $ne: null } };
+
+    // Search by name or ID card number
+    if (search) {
+      query.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { idCardNumber: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    const skip = (page - 1) * limit;
+    const limitNum = Math.min(parseInt(limit) || 10, 100);
+
+    const registrations = await Registration.find(query)
+      .select('_id name idCardNumber phone bloodGroup dob photo idCardGeneratedAt')
+      .sort({ idCardGeneratedAt: -1 })
+      .skip(skip)
+      .limit(limitNum)
+      .lean();
+
+    const total = await Registration.countDocuments(query);
+    const pages = Math.ceil(total / limitNum);
+
+    res.json({
+      registrations,
+      pagination: {
+        total,
+        pages,
+        currentPage: parseInt(page),
+        limit: limitNum
+      }
+    });
+  } catch (error) {
+    console.error('❌ Error fetching ID cards:', error);
+    res.status(500).json({ message: 'Error fetching ID cards' });
+  }
+});
+
+// GET /api/id-card/:id - Public route to get ID card data (no auth required for viewing)
+router.get('/id-card-data/:id', async (req, res) => {
+  try {
+    const registration = await Registration.findById(req.params.id)
+      .select('name fathersName dob bloodGroup phone address photo idCardNumber idCardGeneratedAt idCardRole role');
+
+    if (!registration) {
+      return res.status(404).json({ message: 'Registration not found' });
+    }
+
+    // Only allow ID card viewing for registrations that have ID cards generated
+    if (!registration.idCardNumber) {
+      return res.status(404).json({ message: 'ID card not generated for this registration' });
+    }
+
+    res.json(registration);
+  } catch (error) {
+    console.error('❌ Error fetching ID card data:', error);
+    res.status(500).json({ message: 'Error fetching ID card data' });
+  }
+});
+
+// DELETE /api/admin/registrations/:id/delete-id - Delete ID card for a registration
+router.delete('/registrations/:id/delete-id', adminAuth, async (req, res) => {
+  try {
+    console.log('🔄 Delete ID request received for registration ID:', req.params.id);
+    
+    const registration = await Registration.findById(req.params.id);
+
+    if (!registration) {
+      console.log('❌ Registration not found');
+      return res.status(404).json({ message: 'Registration not found' });
+    }
+
+    // Check if ID card exists
+    if (!registration.idCardNumber) {
+      console.log('❌ No ID card found');
+      return res.status(400).json({ 
+        message: 'No ID card found for this registration' 
+      });
+    }
+
+    const deletedIdCardNumber = registration.idCardNumber;
+
+    // Remove ID card details using $unset to completely remove the fields
+    registration.idCardNumber = undefined;
+    registration.idCardGeneratedAt = undefined;
+    registration.idCardGeneratedBy = undefined;
+
+    await registration.save();
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`✅ ID Card deleted: ${deletedIdCardNumber} for ${registration.name}`);
+    }
+
+    res.json({
+      message: 'ID card deleted successfully',
+      deletedIdCardNumber,
+      registration
+    });
+  } catch (error) {
+    console.error('❌ Error deleting ID card:', error);
+    res.status(500).json({ message: 'Error deleting ID card' });
+  }
+});
+
 module.exports = router;

@@ -56,6 +56,28 @@ const registrationSchema = new mongoose.Schema({
   rejectionReason: { 
     type: String,
     default: null 
+  },
+  
+  // ID Card fields
+  idCardNumber: {
+    type: String,
+    unique: true,
+    sparse: true, // Allows null values to be non-unique
+    default: null
+  },
+  idCardGeneratedAt: {
+    type: Date,
+    default: null
+  },
+  idCardGeneratedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Admin',
+    default: null
+  },
+  // Admin-assigned role for ID card (optional, fallback to registration role)
+  idCardRole: {
+    type: String,
+    default: null
   }
 });
 
