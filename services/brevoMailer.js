@@ -1,14 +1,15 @@
-const MailSettings = require('../models/mailSettings');
+const MailSettings = require("../models/mailSettings");
 
-const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email';
-const REPLY_TO_EMAIL = 'spkabaddigroupdhanbad@gmail.com';
-const REPLY_TO_NAME = 'SP Kabaddi Group Dhanbad';
+const BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
+const REPLY_TO_EMAIL = "spkabaddigroupdhanbad@gmail.com";
+const REPLY_TO_NAME = "SP Kabaddi Group Dhanbad";
 
-const getApiKey = () => process.env.BRAVO_API_KEY || process.env.BREVO_API_KEY || '';
+const getApiKey = () =>
+  process.env.BRAVO_API_KEY || process.env.BREVO_API_KEY || "";
 
 const getSender = () => ({
   email: process.env.MAIL_SENDER_EMAIL || REPLY_TO_EMAIL,
-  name: process.env.MAIL_SENDER_NAME || 'SP Kabaddi Group Dhanbad'
+  name: process.env.MAIL_SENDER_NAME || "SP Kabaddi Group Dhanbad",
 });
 
 const getBrandLogo = () => {
@@ -16,18 +17,20 @@ const getBrandLogo = () => {
     return process.env.CLUB_LOGO_URL;
   }
 
-  const frontendUrl = (process.env.FRONTEND_URL || 'https://spkabaddi.me').replace(/\/+$/, '');
+  const frontendUrl = (
+    process.env.FRONTEND_URL || "https://spkabaddi.me"
+  ).replace(/\/+$/, "");
   return `${frontendUrl}/Logo.png`;
 };
 
 const normalizePhone = (phoneValue) => {
-  const digits = String(phoneValue || '').replace(/\D/g, '');
+  const digits = String(phoneValue || "").replace(/\D/g, "");
 
-  if (digits.startsWith('91') && digits.length === 12) {
+  if (digits.startsWith("91") && digits.length === 12) {
     return digits.slice(2);
   }
 
-  if (digits.startsWith('0') && digits.length === 11) {
+  if (digits.startsWith("0") && digits.length === 11) {
     return digits.slice(1);
   }
 
@@ -36,9 +39,9 @@ const normalizePhone = (phoneValue) => {
 
 const ensureMailSettings = async () => {
   const settings = await MailSettings.findOneAndUpdate(
-    { key: 'default' },
+    { key: "default" },
     { $setOnInsert: { enabled: true, updatedAt: new Date() } },
-    { new: true, upsert: true }
+    { new: true, upsert: true },
   );
 
   return settings;
@@ -48,15 +51,15 @@ const getMailSettings = async () => ensureMailSettings();
 
 const setMailEnabled = async ({ enabled, adminId }) => {
   const settings = await MailSettings.findOneAndUpdate(
-    { key: 'default' },
+    { key: "default" },
     {
       $set: {
         enabled: Boolean(enabled),
         updatedBy: adminId || null,
-        updatedAt: new Date()
-      }
+        updatedAt: new Date(),
+      },
     },
-    { new: true, upsert: true }
+    { new: true, upsert: true },
   );
 
   return settings;
@@ -67,37 +70,49 @@ const isMailEnabled = async () => {
   return Boolean(settings.enabled);
 };
 
-const buildEmailTemplate = ({ title, subtitle, contentHtml, actionText, actionUrl, actionButtons = [] }) => {
+const buildEmailTemplate = ({
+  title,
+  subtitle,
+  contentHtml,
+  actionText,
+  actionUrl,
+  actionButtons = [],
+}) => {
   const logo = getBrandLogo();
-  const websiteUrl = (process.env.FRONTEND_URL || 'https://spkabaddi.me').replace(/\/+$/, '');
+  const websiteUrl = (
+    process.env.FRONTEND_URL || "https://spkabaddi.me"
+  ).replace(/\/+$/, "");
   const facebookUrl = process.env.SOCIAL_FACEBOOK_URL || websiteUrl;
   const instagramUrl = process.env.SOCIAL_INSTAGRAM_URL || websiteUrl;
   const youtubeUrl = process.env.SOCIAL_YOUTUBE_URL || websiteUrl;
-  const iconFacebook = 'https://img.icons8.com/color/48/facebook-new.png';
-  const iconInstagram = 'https://img.icons8.com/color/48/instagram-new--v1.png';
-  const iconYoutube = 'https://img.icons8.com/color/48/youtube-play.png';
-  const iconWebsite = 'https://img.icons8.com/color/48/domain--v1.png';
+  const iconFacebook = "https://img.icons8.com/color/48/facebook-new.png";
+  const iconInstagram = "https://img.icons8.com/color/48/instagram-new--v1.png";
+  const iconYoutube = "https://img.icons8.com/color/48/youtube-play.png";
+  const iconWebsite = "https://img.icons8.com/color/48/domain--v1.png";
   const clubEmail = process.env.MAIL_SENDER_EMAIL || REPLY_TO_EMAIL;
-  const clubPhonePrimary = process.env.CLUB_PHONE_PRIMARY || '8271882034';
-  const clubPhoneSecondary = process.env.CLUB_PHONE_SECONDARY || '9504904499';
+  const clubPhonePrimary = process.env.CLUB_PHONE_PRIMARY || "8271882034";
+  const clubPhoneSecondary = process.env.CLUB_PHONE_SECONDARY || "9504904499";
 
-  const normalizedButtons = Array.isArray(actionButtons) && actionButtons.length
-    ? actionButtons.filter((btn) => btn?.text && btn?.url)
-    : actionText && actionUrl
-      ? [{ text: actionText, url: actionUrl, type: 'primary' }]
-      : [];
+  const normalizedButtons =
+    Array.isArray(actionButtons) && actionButtons.length
+      ? actionButtons.filter((btn) => btn?.text && btn?.url)
+      : actionText && actionUrl
+        ? [{ text: actionText, url: actionUrl, type: "primary" }]
+        : [];
 
   const actionSection = normalizedButtons.length
     ? `<div style="margin:24px 0 0 0;display:flex;flex-wrap:wrap;gap:10px;">
-        ${normalizedButtons.map((btn) => {
-          const isPrimary = btn.type !== 'secondary';
-          const style = isPrimary
-            ? 'display:inline-block;background:linear-gradient(135deg,#1565c0,#0d47a1);color:#ffffff;text-decoration:none;padding:11px 20px;border-radius:9px;font-weight:700;letter-spacing:0.2px;box-shadow:0 6px 16px rgba(21,101,192,0.28);'
-            : 'display:inline-block;background:#ffffff;border:1px solid #0d47a1;color:#0d47a1;text-decoration:none;padding:10px 18px;border-radius:9px;font-weight:700;letter-spacing:0.2px;';
-          return `<a href="${btn.url}" style="${style}">${btn.text}</a>`;
-        }).join('')}
+        ${normalizedButtons
+          .map((btn) => {
+            const isPrimary = btn.type !== "secondary";
+            const style = isPrimary
+              ? "display:inline-block;background:linear-gradient(135deg,#1565c0,#0d47a1);color:#ffffff;text-decoration:none;padding:11px 20px;border-radius:9px;font-weight:700;letter-spacing:0.2px;box-shadow:0 6px 16px rgba(21,101,192,0.28);"
+              : "display:inline-block;background:#ffffff;border:1px solid #0d47a1;color:#0d47a1;text-decoration:none;padding:10px 18px;border-radius:9px;font-weight:700;letter-spacing:0.2px;";
+            return `<a href="${btn.url}" style="${style}">${btn.text}</a>`;
+          })
+          .join("")}
       </div>`
-    : '';
+    : "";
 
   return `
   <!doctype html>
@@ -124,7 +139,7 @@ const buildEmailTemplate = ({ title, subtitle, contentHtml, actionText, actionUr
               <tr>
                 <td style="padding:24px;">
                   <h2 style="margin:0 0 6px 0;font-size:22px;color:#0f172a;">${title}</h2>
-                  ${subtitle ? `<p style="margin:0 0 16px 0;color:#334155;font-size:14px;">${subtitle}</p>` : ''}
+                  ${subtitle ? `<p style="margin:0 0 16px 0;color:#334155;font-size:14px;">${subtitle}</p>` : ""}
                   <div style="font-size:15px;line-height:1.6;color:#1f2937;">${contentHtml}</div>
                   ${actionSection}
                 </td>
@@ -183,7 +198,7 @@ const sendBrevoEmail = async ({ to, subject, htmlContent, textContent }) => {
   const apiKey = getApiKey();
 
   if (!apiKey) {
-    throw new Error('Bravo/Brevo API key is missing. Set BRAVO_API_KEY.');
+    throw new Error("Bravo/Brevo API key is missing. Set BRAVO_API_KEY.");
   }
 
   const payload = {
@@ -191,21 +206,21 @@ const sendBrevoEmail = async ({ to, subject, htmlContent, textContent }) => {
     to: Array.isArray(to) ? to : [to],
     subject,
     htmlContent,
-    textContent: textContent || '',
+    textContent: textContent || "",
     replyTo: {
       email: REPLY_TO_EMAIL,
-      name: REPLY_TO_NAME
-    }
+      name: REPLY_TO_NAME,
+    },
   };
 
   const response = await fetch(BREVO_API_URL, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'accept': 'application/json',
-      'content-type': 'application/json',
-      'api-key': apiKey
+      accept: "application/json",
+      "content-type": "application/json",
+      "api-key": apiKey,
     },
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
@@ -218,51 +233,57 @@ const sendBrevoEmail = async ({ to, subject, htmlContent, textContent }) => {
 
 const sendApplicationProcessingMail = async (registration) => {
   const enabled = await isMailEnabled();
-  if (!enabled) return { skipped: true, reason: 'disabled' };
+  if (!enabled) return { skipped: true, reason: "disabled" };
 
-  if (!registration?.email) return { skipped: true, reason: 'missing-recipient' };
+  if (!registration?.email)
+    return { skipped: true, reason: "missing-recipient" };
 
   const html = buildEmailTemplate({
-    title: 'Application Received',
-    subtitle: 'Your application is currently under processing',
+    title: "Application Received",
+    subtitle: "Your application is currently under processing",
     contentHtml: `
-      <p>Dear ${registration.name || 'Applicant'},</p>
+      <p>Dear ${registration.name || "Applicant"},</p>
       <p>We have received your registration application at SP Kabaddi Group Dhanbad.</p>
       <p>Your application is now in <strong>processing</strong> stage. Our team will review your details and update you soon.</p>
       <p>For queries, simply reply to this email.</p>
       <p style="margin-top:16px;">Regards,<br/>SP Kabaddi Group Dhanbad Team</p>
-    `
+    `,
   });
 
   return sendBrevoEmail({
-    to: [{ email: registration.email, name: registration.name || 'Applicant' }],
-    subject: 'Application Processing - SP Kabaddi Group Dhanbad',
+    to: [{ email: registration.email, name: registration.name || "Applicant" }],
+    subject: "Application Processing - SP Kabaddi Group Dhanbad",
     htmlContent: html,
-    textContent: 'Your application is under processing at SP Kabaddi Group Dhanbad.'
+    textContent:
+      "Your application is under processing at SP Kabaddi Group Dhanbad.",
   });
 };
 
 const sendApprovalMail = async (registration, options = {}) => {
   const enabled = await isMailEnabled();
-  if (!enabled) return { skipped: true, reason: 'disabled' };
+  if (!enabled) return { skipped: true, reason: "disabled" };
 
-  if (!registration?.email) return { skipped: true, reason: 'missing-recipient' };
+  if (!registration?.email)
+    return { skipped: true, reason: "missing-recipient" };
 
-  const initialPassword = options.initialPassword || normalizePhone(registration.phone);
-  const frontendUrl = (process.env.FRONTEND_URL || 'https://spkabaddi.me').replace(/\/+$/, '');
+  const initialPassword =
+    options.initialPassword || normalizePhone(registration.phone);
+  const frontendUrl = (
+    process.env.FRONTEND_URL || "https://spkabaddi.me"
+  ).replace(/\/+$/, "");
   const forgotPasswordUrl = `${frontendUrl}/player/forgot-password`;
   const websiteUrl = `${frontendUrl}/`;
 
   const html = buildEmailTemplate({
-    title: 'Congratulations 🎉 Application Approved',
-    subtitle: 'Your registration and player approval are confirmed',
+    title: "Congratulations 🎉 Application Approved",
+    subtitle: "Your registration and player approval are confirmed",
     contentHtml: `
-      <p>Dear ${registration.name || 'Player'},</p>
+      <p>Dear ${registration.name || "Player"},</p>
       <p><strong>Congratulations 🎉</strong> Your application has been <strong>approved</strong> by SP Kabaddi Group Dhanbad.</p>
       <p>You can now proceed with player login and dashboard access using your credentials:</p>
       <p>
         <strong>Login Email:</strong> ${registration.email}<br/>
-        <strong>Default Password:</strong> ${initialPassword || 'Your registered phone number'}
+        <strong>Default Password:</strong> ${initialPassword || "Your registered phone number"}
       </p>
       <p>For your account security, please login and <strong>change your password immediately</strong>.</p>
       <p><strong>Important update:</strong> Use the <strong>Player Forgot Password</strong> button below if login password is not working. You can also use <strong>Visit Website</strong> to open the club website directly.</p>
@@ -270,92 +291,102 @@ const sendApprovalMail = async (registration, options = {}) => {
       <p style="margin-top:16px;">Regards,<br/>SP Kabaddi Group Dhanbad Team</p>
     `,
     actionButtons: [
-      { text: 'Player Forgot Password', url: forgotPasswordUrl, type: 'primary' },
-      { text: 'Visit Website', url: websiteUrl, type: 'secondary' }
-    ]
+      {
+        text: "Player Forgot Password",
+        url: forgotPasswordUrl,
+        type: "primary",
+      },
+      { text: "Visit Website", url: websiteUrl, type: "secondary" },
+    ],
   });
 
   return sendBrevoEmail({
-    to: [{ email: registration.email, name: registration.name || 'Player' }],
-    subject: 'Congratulations 🎉 Application Approved - SP Kabaddi Group Dhanbad',
+    to: [{ email: registration.email, name: registration.name || "Player" }],
+    subject:
+      "Congratulations 🎉 Application Approved - SP Kabaddi Group Dhanbad",
     htmlContent: html,
-    textContent: `Your application has been approved by SP Kabaddi Group Dhanbad. Login email: ${registration.email}. Default password: ${initialPassword || 'your phone number'}. Please change your password after login. Forgot password link: ${forgotPasswordUrl}. Website: ${websiteUrl}`
+    textContent: `Your application has been approved by SP Kabaddi Group Dhanbad. Login email: ${registration.email}. Default password: ${initialPassword || "your phone number"}. Please change your password after login. Forgot password link: ${forgotPasswordUrl}. Website: ${websiteUrl}`,
   });
 };
 
 const sendPasswordOtpMail = async ({ email, name, otp }) => {
   const enabled = await isMailEnabled();
-  if (!enabled) return { skipped: true, reason: 'disabled' };
+  if (!enabled) return { skipped: true, reason: "disabled" };
 
-  if (!email || !otp) return { skipped: true, reason: 'missing-data' };
+  if (!email || !otp) return { skipped: true, reason: "missing-data" };
 
   const html = buildEmailTemplate({
-    title: 'Password Reset OTP',
-    subtitle: 'Use this OTP to reset your player account password',
+    title: "Password Reset OTP",
+    subtitle: "Use this OTP to reset your player account password",
     contentHtml: `
-      <p>Dear ${name || 'Player'},</p>
+      <p>Dear ${name || "Player"},</p>
       <p>We received a request to reset your password.</p>
       <p style="font-size:22px;font-weight:700;letter-spacing:3px;margin:14px 0;">${otp}</p>
       <p>This OTP is valid for <strong>10 minutes</strong>. Please do not share it with anyone.</p>
       <p>If you did not request this, you can ignore this email.</p>
       <p style="margin-top:16px;">Regards,<br/>SP Kabaddi Group Dhanbad Team</p>
-    `
+    `,
   });
 
   return sendBrevoEmail({
-    to: [{ email, name: name || 'Player' }],
-    subject: 'Password Reset OTP - SP Kabaddi Group Dhanbad',
+    to: [{ email, name: name || "Player" }],
+    subject: "Password Reset OTP - SP Kabaddi Group Dhanbad",
     htmlContent: html,
-    textContent: `Your password reset OTP is ${otp}. It is valid for 10 minutes.`
+    textContent: `Your password reset OTP is ${otp}. It is valid for 10 minutes.`,
   });
 };
 
 const sendAdminPasswordOtpMail = async ({ email, name, otp }) => {
   const enabled = await isMailEnabled();
-  if (!enabled) return { skipped: true, reason: 'disabled' };
+  if (!enabled) return { skipped: true, reason: "disabled" };
 
-  if (!email || !otp) return { skipped: true, reason: 'missing-data' };
+  if (!email || !otp) return { skipped: true, reason: "missing-data" };
 
   const html = buildEmailTemplate({
-    title: 'Admin Password Reset OTP',
-    subtitle: 'Use this OTP to reset your admin account password',
+    title: "Admin Password Reset OTP",
+    subtitle: "Use this OTP to reset your admin account password",
     contentHtml: `
-      <p>Dear ${name || 'Admin'},</p>
+      <p>Dear ${name || "Admin"},</p>
       <p>We received a request to reset your admin panel password.</p>
       <p style="font-size:22px;font-weight:700;letter-spacing:3px;margin:14px 0;">${otp}</p>
       <p>This OTP is valid for <strong>10 minutes</strong>. Do not share it with anyone.</p>
       <p>If this request was not made by you, ignore this email and inform support.</p>
       <p style="margin-top:16px;">Regards,<br/>SP Kabaddi Group Dhanbad Team</p>
-    `
+    `,
   });
 
   return sendBrevoEmail({
-    to: [{ email, name: name || 'Admin' }],
-    subject: 'Admin Password Reset OTP - SP Kabaddi Group Dhanbad',
+    to: [{ email, name: name || "Admin" }],
+    subject: "Admin Password Reset OTP - SP Kabaddi Group Dhanbad",
     htmlContent: html,
-    textContent: `Your admin password reset OTP is ${otp}. It is valid for 10 minutes.`
+    textContent: `Your admin password reset OTP is ${otp}. It is valid for 10 minutes.`,
   });
 };
 
-const sendCustomAdminMail = async ({ recipients, subject, messageHtml, messageText }) => {
+const sendCustomAdminMail = async ({
+  recipients,
+  subject,
+  messageHtml,
+  messageText,
+}) => {
   const enabled = await isMailEnabled();
-  if (!enabled) return { skipped: true, reason: 'disabled' };
+  if (!enabled) return { skipped: true, reason: "disabled" };
 
   if (!Array.isArray(recipients) || recipients.length === 0) {
-    return { skipped: true, reason: 'no-recipients' };
+    return { skipped: true, reason: "no-recipients" };
   }
 
   const html = buildEmailTemplate({
     title: subject,
-    subtitle: 'Message from SP Kabaddi Group Dhanbad Admin',
-    contentHtml: messageHtml
+    subtitle: "Message from SP Kabaddi Group Dhanbad Admin",
+    contentHtml: messageHtml,
   });
 
   return sendBrevoEmail({
     to: recipients,
     subject,
     htmlContent: html,
-    textContent: messageText || ''
+    textContent: messageText || "",
   });
 };
 
@@ -367,5 +398,5 @@ module.exports = {
   sendApprovalMail,
   sendCustomAdminMail,
   sendPasswordOtpMail,
-  sendAdminPasswordOtpMail
+  sendAdminPasswordOtpMail,
 };

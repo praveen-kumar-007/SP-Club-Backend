@@ -1,15 +1,20 @@
 // middleware/adminAuth.js
-const jwt = require('jsonwebtoken');
-const Admin = require('../models/admin');
-const ADMIN_JWT_SECRET = process.env.ADMIN_JWT_SECRET || process.env.JWT_SECRET || 'sp_club_admin_secret_key_2024';
+const jwt = require("jsonwebtoken");
+const Admin = require("../models/admin");
+const ADMIN_JWT_SECRET =
+  process.env.ADMIN_JWT_SECRET ||
+  process.env.JWT_SECRET ||
+  "sp_club_admin_secret_key_2024";
 
 const adminAuth = (req, res, next) => {
   try {
     // Get token from header
-    const token = req.headers.authorization?.split(' ')[1];
-    
+    const token = req.headers.authorization?.split(" ")[1];
+
     if (!token) {
-      return res.status(401).json({ message: 'No token provided, authorization denied' });
+      return res
+        .status(401)
+        .json({ message: "No token provided, authorization denied" });
     }
 
     // Verify token
@@ -22,9 +27,11 @@ const adminAuth = (req, res, next) => {
     const deviceId = decoded.deviceId;
     if (deviceId && decoded.id) {
       Admin.findById(decoded.id)
-        .then(admin => {
+        .then((admin) => {
           if (!admin || !admin.activeSessions) return;
-          const idx = admin.activeSessions.findIndex(s => s.deviceId === deviceId);
+          const idx = admin.activeSessions.findIndex(
+            (s) => s.deviceId === deviceId,
+          );
           if (idx !== -1) {
             admin.activeSessions[idx].lastActivityTime = new Date();
             return admin.save();
@@ -35,16 +42,22 @@ const adminAuth = (req, res, next) => {
 
     next();
   } catch (error) {
-    console.error('Token verification error:', error.message);
-    res.status(401).json({ message: 'Token is invalid or expired' });
+    console.error("Token verification error:", error.message);
+    res.status(401).json({ message: "Token is invalid or expired" });
   }
 };
 
 // Check if admin has specific permission
 const checkPermission = (permission) => {
   return (req, res, next) => {
-    if (!req.admin || !req.admin.permissions || !req.admin.permissions[permission]) {
-      return res.status(403).json({ message: `You don't have permission to ${permission}` });
+    if (
+      !req.admin ||
+      !req.admin.permissions ||
+      !req.admin.permissions[permission]
+    ) {
+      return res
+        .status(403)
+        .json({ message: `You don't have permission to ${permission}` });
     }
     next();
   };
