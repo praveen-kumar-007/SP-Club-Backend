@@ -5,6 +5,20 @@ const { upload } = require('../config/cloudinary');
 const News = require('../models/news');
 const { adminAuth } = require('../middleware/adminAuth');
 
+const FRONTEND_BASE_URL = (process.env.FRONTEND_URL || 'https://spkabaddi.me').replace(/\/+$/, '');
+
+const escapeHtml = (value = '') => String(value)
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
+const buildShareDescription = (content = '') => {
+  const normalized = String(content).replace(/\s+/g, ' ').trim();
+  return normalized.length > 180 ? `${normalized.slice(0, 177)}...` : normalized;
+};
+
 // GET /api/news/admin/all - Get all news including unpublished (admin only)
 // IMPORTANT: This route must come BEFORE /:id to avoid route conflicts
 router.get('/admin/all', adminAuth, async (req, res) => {
@@ -38,6 +52,61 @@ router.get('/', async (req, res) => {
   } catch (error) {
     console.error('Error fetching news:', error);
     res.status(500).json({ message: 'Failed to fetch news' });
+  }
+});
+
+// GET /api/news/share/:id - Share-safe page with dynamic OG tags (public)
+router.get('/share/:id', async (req, res) => {
+  try {
+    const news = await News.findById(req.params.id).select('title content images published _id');
+
+    if (!news || !news.published) {
+      return res.status(404).send('<!doctype html><html><head><meta charset="utf-8"><title>News Not Found</title></head><body><h1>News article not found.</h1></body></html>');
+    }
+
+    const articleUrl = `${FRONTEND_BASE_URL}/news/${news._id}`;
+    const shareUrl = `${req.protocol}://${req.get('host')}${req.originalUrl}`;
+    const imageUrl = Array.isArray(news.images) && news.images.length > 0
+      ? news.images[0]
+      : `${FRONTEND_BASE_URL}/Logo.png`;
+    const title = news.title || 'SP Kabaddi News';
+    const description = buildShareDescription(news.content || 'Latest update from SP Kabaddi Group Dhanbad.');
+
+    const html = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${escapeHtml(title)}</title>
+  <meta name="description" content="${escapeHtml(description)}" />
+  <link rel="canonical" href="${escapeHtml(articleUrl)}" />
+
+  <meta property="og:site_name" content="SP Kabaddi Group Dhanbad" />
+  <meta property="og:type" content="article" />
+  <meta property="og:title" content="${escapeHtml(title)}" />
+  <meta property="og:description" content="${escapeHtml(description)}" />
+  <meta property="og:url" content="${escapeHtml(shareUrl)}" />
+  <meta property="og:image" content="${escapeHtml(imageUrl)}" />
+  <meta property="og:image:secure_url" content="${escapeHtml(imageUrl)}" />
+
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="${escapeHtml(title)}" />
+  <meta name="twitter:description" content="${escapeHtml(description)}" />
+  <meta name="twitter:image" content="${escapeHtml(imageUrl)}" />
+
+  <meta http-equiv="refresh" content="0;url=${escapeHtml(articleUrl)}" />
+</head>
+<body>
+  <p>Opening article: <a href="${escapeHtml(articleUrl)}">${escapeHtml(articleUrl)}</a></p>
+  <script>window.location.replace(${JSON.stringify(articleUrl)});</script>
+</body>
+</html>`;
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.status(200).send(html);
+  } catch (error) {
+    console.error('Error rendering share page:', error);
+    return res.status(500).send('<!doctype html><html><head><meta charset="utf-8"><title>Error</title></head><body><h1>Failed to load shared news.</h1></body></html>');
   }
 });
 
