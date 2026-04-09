@@ -16,6 +16,7 @@ const {
 const { adminAuth, checkPermission } = require('../middleware/adminAuth');
 
 const ADMIN_JWT_SECRET = process.env.ADMIN_JWT_SECRET || process.env.JWT_SECRET || 'sp_club_admin_secret_key_2024';
+const MAX_ADMIN_DEVICES = 15;
 
 const normalizePhone = (phoneValue) => {
   const digits = String(phoneValue || '').replace(/\D/g, '');
@@ -137,23 +138,15 @@ router.post('/login', async (req, res) => {
       admin.activeSessions = [];
     }
 
-    // Prune stale sessions older than inactivity window (5 minutes)
-    const INACTIVITY_MS = 5 * 60 * 1000; // align with frontend session
-    const now = Date.now();
-    admin.activeSessions = admin.activeSessions.filter(s => {
-      const last = new Date(s.lastActivityTime || s.loginTime).getTime();
-      return now - last < INACTIVITY_MS;
-    });
-
     // Check if device already has an active session
     const existingSessionIndex = admin.activeSessions.findIndex(s => s.deviceId === deviceId);
     
-    // If this is a NEW device (not already logged in) and already 2 sessions active, REJECT
-    if (existingSessionIndex === -1 && admin.activeSessions.length >= 2) {
+    // If this is a NEW device (not already logged in) and already at device cap, reject.
+    if (existingSessionIndex === -1 && admin.activeSessions.length >= MAX_ADMIN_DEVICES) {
       return res.status(429).json({ 
-        message: 'Maximum 2 devices allowed. Please logout from another device first.',
+        message: `Maximum ${MAX_ADMIN_DEVICES} devices allowed. Please logout from another device first.`,
         activeSessions: admin.activeSessions.length,
-        maxDevices: 2,
+        maxDevices: MAX_ADMIN_DEVICES,
         currentDevices: admin.activeSessions.map(s => ({
           deviceName: s.deviceName,
           loginTime: s.loginTime
@@ -183,7 +176,7 @@ router.post('/login', async (req, res) => {
 
     if (process.env.NODE_ENV === 'development') {
       console.log(`✅ Admin logged in: ${username} from device: ${deviceName || 'Unknown'}`);
-      console.log(`   Active sessions: ${admin.activeSessions.length}/2`);
+      console.log(`   Active sessions: ${admin.activeSessions.length}/${MAX_ADMIN_DEVICES}`);
     }
 
     res.json({
@@ -317,7 +310,7 @@ router.post('/logout', adminAuth, async (req, res) => {
 
     if (process.env.NODE_ENV === 'development') {
       console.log(`✅ Admin logged out: ${admin.username} from device: ${deviceId}`);
-      console.log(`   Remaining active sessions: ${admin.activeSessions.length}/2`);
+      console.log(`   Remaining active sessions: ${admin.activeSessions.length}/${MAX_ADMIN_DEVICES}`);
     }
 
     res.json({ 
@@ -1246,6 +1239,8 @@ router.post('/attendance/:playerId/mark', adminAuth, async (req, res) => {
         accuracy: typeof accuracy === 'number' ? accuracy : null,
         address: typeof address === 'string' ? address.trim() : null
       },
+      deviceId: null,
+      deviceName: null,
       markedByType: 'admin',
       markedByAdminId: req.adminId,
       adminNote: typeof note === 'string' && note.trim() ? note.trim() : null,
