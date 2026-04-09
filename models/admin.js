@@ -51,7 +51,19 @@ const adminSchema = new mongoose.Schema({
       loginTime: { type: Date, default: Date.now },
       lastActivityTime: { type: Date, default: Date.now }
     }
-  ]
+  ],
+  passwordResetOtpHash: {
+    type: String,
+    default: null
+  },
+  passwordResetOtpExpiresAt: {
+    type: Date,
+    default: null
+  },
+  passwordResetRequestedAt: {
+    type: Date,
+    default: null
+  }
 });
 
 // Hash password before saving

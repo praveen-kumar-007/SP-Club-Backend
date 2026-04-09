@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const { upload } = require('../config/cloudinary');
 const Registration = require('../models/registration');
+const { sendApplicationProcessingMail } = require('../services/brevoMailer');
 
 router.post(
   '/',
@@ -110,6 +111,11 @@ router.post(
       });
 
       await newRegistration.save();
+
+      // Send processing email asynchronously (do not block registration success)
+      sendApplicationProcessingMail(newRegistration).catch((mailError) => {
+        console.error('Processing email send failed:', mailError?.message || mailError);
+      });
 
       res.status(201).json({
         message: 'Registration successful!',

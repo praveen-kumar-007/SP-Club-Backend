@@ -38,7 +38,7 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-player-id']
 }));
 
 /* ----------------------------------------------------
@@ -57,6 +57,7 @@ const registerRoutes = require('./routes/registerRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const newsletterRoutes = require('./routes/newsletterRoutes');
 const newsRoutes = require('./routes/newsRoutes');
+const playerRoutes = require('./routes/playerRoutes');
 
 app.get('/', (req, res) => {
   res.send('SP Club Backend is running!');
@@ -67,6 +68,7 @@ app.use('/api/register', registerRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/newsletter', newsletterRoutes);
 app.use('/api/news', newsRoutes);
+app.use('/api/player', playerRoutes);
 
 /* ----------------------------------------------------
    🔴 GLOBAL ERROR HANDLER (CRITICAL FIX)

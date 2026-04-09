@@ -2,11 +2,36 @@
 const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 const Admin = require('../models/admin');
 const Registration = require('../models/registration');
+const PlayerMessage = require('../models/playerMessage');
+const {
+  getMailSettings,
+  setMailEnabled,
+  sendApprovalMail,
+  sendCustomAdminMail,
+  sendAdminPasswordOtpMail
+} = require('../services/brevoMailer');
 const { adminAuth, checkPermission } = require('../middleware/adminAuth');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'sp_club_admin_secret_key_2024';
+const ADMIN_JWT_SECRET = process.env.ADMIN_JWT_SECRET || process.env.JWT_SECRET || 'sp_club_admin_secret_key_2024';
+
+const normalizePhone = (phoneValue) => {
+  const digits = String(phoneValue || '').replace(/\D/g, '');
+
+  if (digits.startsWith('91') && digits.length === 12) {
+    return digits.slice(2);
+  }
+
+  if (digits.startsWith('0') && digits.length === 11) {
+    return digits.slice(1);
+  }
+
+  return digits;
+};
+
+const generateOtp = () => String(Math.floor(100000 + Math.random() * 900000));
 
 // ========== AUTHENTICATION ROUTES ==========
 
@@ -103,7 +128,7 @@ router.post('/login', async (req, res) => {
         permissions: admin.permissions,
         deviceId: deviceId || 'unknown'
       },
-      JWT_SECRET,
+      ADMIN_JWT_SECRET,
       { expiresIn: '24h' }
     );
 
@@ -170,6 +195,103 @@ router.post('/login', async (req, res) => {
   } catch (error) {
     console.error('❌ Login error:', error);
     res.status(500).json({ message: 'Error logging in' });
+  }
+});
+
+// POST /api/admin/password/forgot/request - Request OTP for admin password reset
+router.post('/password/forgot/request', async (req, res) => {
+  try {
+    const { usernameOrEmail } = req.body;
+
+    if (!usernameOrEmail) {
+      return res.status(400).json({ message: 'usernameOrEmail is required' });
+    }
+
+    const value = String(usernameOrEmail).trim();
+    const admin = await Admin.findOne({
+      $or: [{ username: value.toLowerCase() }, { email: value.toLowerCase() }]
+    });
+
+    // Generic response for security
+    if (!admin) {
+      return res.json({ message: 'If account exists, OTP has been sent to registered email' });
+    }
+
+    const otp = generateOtp();
+    const otpHash = await bcrypt.hash(otp, 10);
+
+    admin.passwordResetOtpHash = otpHash;
+    admin.passwordResetOtpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    admin.passwordResetRequestedAt = new Date();
+    await admin.save();
+
+    const mailResult = await sendAdminPasswordOtpMail({
+      email: admin.email,
+      name: admin.username,
+      otp
+    });
+
+    if (mailResult?.skipped && mailResult.reason === 'disabled') {
+      return res.status(503).json({
+        message: 'Mail service is currently disabled. Please contact super admin.'
+      });
+    }
+
+    return res.json({ message: 'If account exists, OTP has been sent to registered email' });
+  } catch (error) {
+    console.error('Admin forgot password request error:', error);
+    return res.status(500).json({ message: 'Failed to send OTP' });
+  }
+});
+
+// POST /api/admin/password/forgot/reset - Reset admin password using OTP
+router.post('/password/forgot/reset', async (req, res) => {
+  try {
+    const { usernameOrEmail, otp, newPassword } = req.body;
+
+    if (!usernameOrEmail || !otp || !newPassword) {
+      return res.status(400).json({ message: 'usernameOrEmail, otp and newPassword are required' });
+    }
+
+    if (String(newPassword).length < 6) {
+      return res.status(400).json({ message: 'New password must be at least 6 characters' });
+    }
+
+    const value = String(usernameOrEmail).trim();
+    const admin = await Admin.findOne({
+      $or: [{ username: value.toLowerCase() }, { email: value.toLowerCase() }]
+    });
+
+    if (!admin) {
+      return res.status(400).json({ message: 'Invalid OTP or account details' });
+    }
+
+    if (!admin.passwordResetOtpHash || !admin.passwordResetOtpExpiresAt) {
+      return res.status(400).json({ message: 'OTP not requested or expired' });
+    }
+
+    if (new Date(admin.passwordResetOtpExpiresAt).getTime() < Date.now()) {
+      return res.status(400).json({ message: 'OTP has expired. Request a new OTP.' });
+    }
+
+    const otpMatches = await bcrypt.compare(String(otp).trim(), admin.passwordResetOtpHash);
+    if (!otpMatches) {
+      return res.status(400).json({ message: 'Invalid OTP or account details' });
+    }
+
+    admin.password = String(newPassword);
+    admin.passwordResetOtpHash = null;
+    admin.passwordResetOtpExpiresAt = null;
+    admin.passwordResetRequestedAt = null;
+    admin.activeSessions = [];
+    await admin.save();
+
+    return res.json({
+      message: 'Password reset successful. Please login again on all devices.'
+    });
+  } catch (error) {
+    console.error('Admin forgot password reset error:', error);
+    return res.status(500).json({ message: 'Failed to reset password' });
   }
 });
 
@@ -335,13 +457,35 @@ router.put('/registrations/:id/approve', adminAuth, async (req, res) => {
       return res.status(400).json({ message: 'Registration is already approved' });
     }
 
+    const defaultPassword = normalizePhone(registration.phone);
+    if (!defaultPassword) {
+      return res.status(400).json({
+        message: 'Phone number is required before approval to set default player password'
+      });
+    }
+
+    const passwordHash = await bcrypt.hash(defaultPassword, 10);
+
     registration.status = 'approved';
     registration.approvedBy = req.adminId;
     registration.approvedAt = new Date();
     registration.rejectionReason = null;
+    registration.playerPasswordHash = passwordHash;
+    registration.playerPasswordSetAt = new Date();
+    registration.playerPasswordResetOtpHash = null;
+    registration.playerPasswordResetOtpExpiresAt = null;
+    registration.playerPasswordResetRequestedAt = null;
+    registration.playerFailedLoginAttempts = 0;
+    registration.playerForcePasswordReset = false;
+    registration.playerLastFailedLoginAt = null;
 
     await registration.save();
     console.log('✅ Registration status updated to approved in database');
+
+    // Send approval email asynchronously (does not block API success)
+    sendApprovalMail(registration, { initialPassword: defaultPassword }).catch((mailError) => {
+      console.error('Approval email send failed:', mailError?.message || mailError);
+    });
 
     res.json({
       message: 'Registration approved successfully',
@@ -350,6 +494,106 @@ router.put('/registrations/:id/approve', adminAuth, async (req, res) => {
   } catch (error) {
     console.error('❌ Error approving registration:', error);
     res.status(500).json({ message: 'Error approving registration', error: error.message });
+  }
+});
+
+// ========== MAIL SETTINGS & ADMIN MAIL ROUTES ==========
+
+// GET /api/admin/mail/settings - Get mail toggle status
+router.get('/mail/settings', adminAuth, async (req, res) => {
+  try {
+    const settings = await getMailSettings();
+
+    return res.json({
+      enabled: Boolean(settings.enabled),
+      updatedAt: settings.updatedAt,
+      updatedBy: settings.updatedBy
+    });
+  } catch (error) {
+    console.error('Error fetching mail settings:', error);
+    return res.status(500).json({ message: 'Failed to fetch mail settings' });
+  }
+});
+
+// PATCH /api/admin/mail/settings - Toggle mail sending on/off
+router.patch('/mail/settings', adminAuth, async (req, res) => {
+  try {
+    const { enabled } = req.body;
+
+    if (typeof enabled !== 'boolean') {
+      return res.status(400).json({ message: 'enabled must be a boolean' });
+    }
+
+    const settings = await setMailEnabled({ enabled, adminId: req.adminId });
+
+    return res.json({
+      message: `Mail sending ${settings.enabled ? 'enabled' : 'disabled'} successfully`,
+      enabled: Boolean(settings.enabled),
+      updatedAt: settings.updatedAt
+    });
+  } catch (error) {
+    console.error('Error updating mail settings:', error);
+    return res.status(500).json({ message: 'Failed to update mail settings' });
+  }
+});
+
+// POST /api/admin/mail/send - Send branded mail to all or selected approved players
+router.post('/mail/send', adminAuth, async (req, res) => {
+  try {
+    const { mode, playerIds, subject, message } = req.body;
+
+    if (!subject || !message) {
+      return res.status(400).json({ message: 'subject and message are required' });
+    }
+
+    if (!mode || !['all', 'selected'].includes(mode)) {
+      return res.status(400).json({ message: 'mode must be all or selected' });
+    }
+
+    let query = { status: 'approved' };
+    if (mode === 'selected') {
+      if (!Array.isArray(playerIds) || playerIds.length === 0) {
+        return res.status(400).json({ message: 'playerIds are required for selected mode' });
+      }
+
+      query = {
+        status: 'approved',
+        _id: { $in: playerIds }
+      };
+    }
+
+    const players = await Registration.find(query)
+      .select('name email')
+      .lean();
+
+    const recipients = players
+      .filter((p) => p.email)
+      .map((p) => ({ email: p.email, name: p.name || 'Player' }));
+
+    if (!recipients.length) {
+      return res.status(400).json({ message: 'No eligible recipients found' });
+    }
+
+    const htmlBody = `<p>${String(message).replace(/\n/g, '<br/>')}</p>`;
+
+    const result = await sendCustomAdminMail({
+      recipients,
+      subject: String(subject).trim(),
+      messageHtml: htmlBody,
+      messageText: String(message)
+    });
+
+    if (result?.skipped && result.reason === 'disabled') {
+      return res.status(400).json({ message: 'Mail sending is currently disabled from admin toggle' });
+    }
+
+    return res.json({
+      message: `Mail sent to ${recipients.length} recipient(s)`,
+      recipientsCount: recipients.length
+    });
+  } catch (error) {
+    console.error('Error sending admin bulk mail:', error);
+    return res.status(500).json({ message: 'Failed to send mail', error: error.message });
   }
 });
 
@@ -473,6 +717,39 @@ router.get('/stats', adminAuth, async (req, res) => {
 });
 
 // ========== ADMIN PROFILE ROUTES ==========
+
+// PATCH /api/admin/password/change - Change password for logged-in admin
+router.patch('/password/change', adminAuth, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: 'Current password and new password are required' });
+    }
+
+    if (String(newPassword).length < 6) {
+      return res.status(400).json({ message: 'New password must be at least 6 characters' });
+    }
+
+    const admin = await Admin.findById(req.adminId);
+    if (!admin) {
+      return res.status(404).json({ message: 'Admin not found' });
+    }
+
+    const isCurrentValid = await admin.comparePassword(currentPassword);
+    if (!isCurrentValid) {
+      return res.status(401).json({ message: 'Current password is incorrect' });
+    }
+
+    admin.password = String(newPassword);
+    await admin.save();
+
+    return res.json({ message: 'Password updated successfully' });
+  } catch (error) {
+    console.error('Error changing admin password:', error);
+    return res.status(500).json({ message: 'Failed to change password' });
+  }
+});
 
 // GET /api/admin/profile - Get current admin profile
 router.get('/profile', adminAuth, async (req, res) => {
@@ -796,6 +1073,354 @@ router.delete('/registrations/:id/delete-id', adminAuth, async (req, res) => {
   } catch (error) {
     console.error('❌ Error deleting ID card:', error);
     res.status(500).json({ message: 'Error deleting ID card' });
+  }
+});
+
+// ========== PLAYER AUTH & ATTENDANCE MANAGEMENT ROUTES ==========
+
+const toIsoDate = (date) => date.toISOString().split('T')[0];
+
+const getMonthBounds = (monthParam) => {
+  const now = new Date();
+  const [yearStr, monthStr] = (monthParam || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`).split('-');
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+
+  if (!year || !month || month < 1 || month > 12) {
+    return null;
+  }
+
+  const start = new Date(Date.UTC(year, month - 1, 1));
+  const end = new Date(Date.UTC(year, month, 0));
+
+  return {
+    month: `${year}-${String(month).padStart(2, '0')}`,
+    startDate: toIsoDate(start),
+    endDate: toIsoDate(end)
+  };
+};
+
+// GET /api/admin/players - List all approved players with generated IDs
+router.get('/players', adminAuth, async (req, res) => {
+  try {
+    const search = (req.query.search || '').trim();
+
+    const query = {
+      status: 'approved'
+    };
+
+    if (search) {
+      query.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { idCardNumber: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    const players = await Registration.find(query)
+      .select('_id name email phone role idCardNumber attendance')
+      .sort({ name: 1 })
+      .lean();
+
+    const mapped = players.map((player) => ({
+      ...player,
+      attendanceCount: Array.isArray(player.attendance) ? player.attendance.length : 0
+    }));
+
+    return res.json({ players: mapped });
+  } catch (error) {
+    console.error('Error fetching players:', error);
+    return res.status(500).json({ message: 'Failed to fetch players' });
+  }
+});
+
+// POST /api/admin/players/:id/set-password - Set or reset player password by admin
+router.post('/players/:id/set-password', adminAuth, async (req, res) => {
+  try {
+    const { password } = req.body;
+
+    if (!password || typeof password !== 'string' || password.trim().length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    }
+
+    const player = await Registration.findById(req.params.id);
+    if (!player) {
+      return res.status(404).json({ message: 'Player not found' });
+    }
+
+    if (player.status !== 'approved' || !player.idCardNumber) {
+      return res.status(400).json({ message: 'Only approved players with ID card can be assigned login password' });
+    }
+
+    player.playerPasswordHash = await bcrypt.hash(password.trim(), 10);
+    player.playerPasswordSetAt = new Date();
+    player.playerFailedLoginAttempts = 0;
+    player.playerForcePasswordReset = false;
+    player.playerLastFailedLoginAt = null;
+    await player.save();
+
+    return res.json({
+      message: 'Player password updated successfully',
+      player: {
+        _id: player._id,
+        name: player.name,
+        idCardNumber: player.idCardNumber,
+        playerPasswordSetAt: player.playerPasswordSetAt
+      }
+    });
+  } catch (error) {
+    console.error('Error setting player password:', error);
+    return res.status(500).json({ message: 'Failed to set player password' });
+  }
+});
+
+// GET /api/admin/attendance/:playerId - Per player attendance for a month
+router.get('/attendance/:playerId', adminAuth, async (req, res) => {
+  try {
+    const bounds = getMonthBounds(req.query.month);
+    if (!bounds) {
+      return res.status(400).json({ message: 'Invalid month format. Use YYYY-MM.' });
+    }
+
+    const player = await Registration.findById(req.params.playerId)
+      .select('_id name email role idCardNumber attendance status');
+
+    if (!player) {
+      return res.status(404).json({ message: 'Player not found' });
+    }
+
+    const attendance = (player.attendance || [])
+      .filter((entry) => entry.date >= bounds.startDate && entry.date <= bounds.endDate)
+      .sort((a, b) => (a.date < b.date ? -1 : 1));
+
+    return res.json({
+      month: bounds.month,
+      player: {
+        id: player._id,
+        name: player.name,
+        email: player.email,
+        role: player.role,
+        idCardNumber: player.idCardNumber,
+        status: player.status
+      },
+      attendance
+    });
+  } catch (error) {
+    console.error('Error fetching player attendance:', error);
+    return res.status(500).json({ message: 'Failed to fetch player attendance' });
+  }
+});
+
+// POST /api/admin/attendance/:playerId/mark - Admin marks attendance for a player
+router.post('/attendance/:playerId/mark', adminAuth, async (req, res) => {
+  try {
+    const { date, status = 'present', note, latitude, longitude, accuracy, address } = req.body || {};
+
+    const attendanceDate = typeof date === 'string' && date.trim()
+      ? date.trim()
+      : new Date().toISOString().split('T')[0];
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(attendanceDate)) {
+      return res.status(400).json({ message: 'date must be in YYYY-MM-DD format' });
+    }
+
+    if (!['present', 'absent'].includes(status)) {
+      return res.status(400).json({ message: 'status must be present or absent' });
+    }
+
+    const player = await Registration.findById(req.params.playerId);
+    if (!player) {
+      return res.status(404).json({ message: 'Player not found' });
+    }
+
+    if (player.status !== 'approved') {
+      return res.status(400).json({ message: 'Only approved players can have attendance marked' });
+    }
+
+    const record = {
+      date: attendanceDate,
+      status,
+      location: {
+        latitude: typeof latitude === 'number' ? latitude : 0,
+        longitude: typeof longitude === 'number' ? longitude : 0,
+        accuracy: typeof accuracy === 'number' ? accuracy : null,
+        address: typeof address === 'string' ? address.trim() : null
+      },
+      markedByType: 'admin',
+      markedByAdminId: req.adminId,
+      adminNote: typeof note === 'string' && note.trim() ? note.trim() : null,
+      markedAt: new Date()
+    };
+
+    const existingIndex = (player.attendance || []).findIndex((item) => item.date === attendanceDate);
+    let action = 'created';
+
+    if (existingIndex !== -1) {
+      player.attendance[existingIndex] = {
+        ...player.attendance[existingIndex].toObject(),
+        ...record
+      };
+      action = 'updated';
+    } else {
+      player.attendance.push(record);
+    }
+
+    await player.save();
+
+    return res.json({
+      message: `Attendance ${action} by admin successfully`,
+      action,
+      attendance: record,
+      player: {
+        id: player._id,
+        name: player.name,
+        idCardNumber: player.idCardNumber
+      }
+    });
+  } catch (error) {
+    console.error('Error marking attendance by admin:', error);
+    return res.status(500).json({ message: 'Failed to mark attendance by admin' });
+  }
+});
+
+// ========== PLAYER MESSAGE MANAGEMENT ROUTES ==========
+
+// GET /api/admin/player-messages - List all player messages for admin
+router.get('/player-messages', adminAuth, async (req, res) => {
+  try {
+    const status = (req.query.status || 'all').trim();
+
+    const query = {};
+    if (status !== 'all') {
+      query.status = status;
+    }
+
+    const items = await PlayerMessage.find(query)
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.json({ items });
+  } catch (error) {
+    console.error('Error fetching player messages:', error);
+    return res.status(500).json({ message: 'Failed to fetch player messages' });
+  }
+});
+
+// PATCH /api/admin/player-messages/:id - Mark message as completed
+router.patch('/player-messages/:id', adminAuth, async (req, res) => {
+  try {
+    const item = await PlayerMessage.findByIdAndUpdate(
+      req.params.id,
+      { status: 'completed' },
+      { new: true }
+    );
+
+    if (!item) {
+      return res.status(404).json({ message: 'Player message not found' });
+    }
+
+    return res.json({ message: 'Player message marked as completed', item });
+  } catch (error) {
+    console.error('Error updating player message:', error);
+    return res.status(500).json({ message: 'Failed to update player message' });
+  }
+});
+
+// POST /api/admin/player-messages/send - Send a new message from admin to player
+router.post('/player-messages/send', adminAuth, async (req, res) => {
+  try {
+    const { playerId, subject, message } = req.body;
+
+    if (!playerId || !subject || !message) {
+      return res.status(400).json({ message: 'playerId, subject and message are required' });
+    }
+
+    const player = await Registration.findById(playerId)
+      .select('_id name email phone idCardNumber status');
+
+    if (!player || player.status !== 'approved') {
+      return res.status(404).json({ message: 'Approved player not found' });
+    }
+
+    const item = new PlayerMessage({
+      playerId: player._id,
+      playerName: player.name,
+      playerEmail: player.email,
+      playerPhone: player.phone || '',
+      idCardNumber: player.idCardNumber || '',
+      type: 'admin_to_player',
+      sentByAdminId: req.adminId,
+      sentByAdminName: req.admin?.username || 'Admin',
+      subject: subject.trim(),
+      message: message.trim(),
+      isReadByPlayer: false,
+      status: 'new'
+    });
+
+    await item.save();
+
+    return res.status(201).json({ message: 'Message sent to player', item });
+  } catch (error) {
+    console.error('Error sending admin message to player:', error);
+    return res.status(500).json({ message: 'Failed to send message to player' });
+  }
+});
+
+// POST /api/admin/player-messages/:id/reply - Reply to a player message
+router.post('/player-messages/:id/reply', adminAuth, async (req, res) => {
+  try {
+    const { message } = req.body;
+
+    if (!message || typeof message !== 'string' || !message.trim()) {
+      return res.status(400).json({ message: 'Reply message is required' });
+    }
+
+    const original = await PlayerMessage.findById(req.params.id);
+    if (!original) {
+      return res.status(404).json({ message: 'Player message not found' });
+    }
+
+    const replyItem = new PlayerMessage({
+      playerId: original.playerId,
+      playerName: original.playerName,
+      playerEmail: original.playerEmail,
+      playerPhone: original.playerPhone || '',
+      idCardNumber: original.idCardNumber || '',
+      type: 'admin_to_player',
+      replyToMessageId: original._id,
+      sentByAdminId: req.adminId,
+      sentByAdminName: req.admin?.username || 'Admin',
+      subject: `Reply: ${original.subject}`,
+      message: message.trim(),
+      isReadByPlayer: false,
+      status: 'new'
+    });
+
+    await replyItem.save();
+
+    original.status = 'completed';
+    await original.save();
+
+    return res.status(201).json({ message: 'Reply sent to player', item: replyItem });
+  } catch (error) {
+    console.error('Error replying to player message:', error);
+    return res.status(500).json({ message: 'Failed to send reply to player' });
+  }
+});
+
+// DELETE /api/admin/player-messages/:id - Delete player message
+router.delete('/player-messages/:id', adminAuth, async (req, res) => {
+  try {
+    const item = await PlayerMessage.findByIdAndDelete(req.params.id);
+
+    if (!item) {
+      return res.status(404).json({ message: 'Player message not found' });
+    }
+
+    return res.json({ message: 'Player message deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting player message:', error);
+    return res.status(500).json({ message: 'Failed to delete player message' });
   }
 });
 

@@ -1,86 +1,52 @@
-# Email Configuration for Render Deployment
+# Bravo/Brevo Email Setup (API Key Only)
 
-## Required Environment Variables on Render
+This project uses Bravo/Brevo HTTP API for all mail flows.
+No SMTP user/password and no SendGrid is needed.
 
-Make sure these environment variables are set in your Render dashboard:
+## Required Environment Variables
 
-```
-EMAIL_USER=spkabaddigroupdhanbad@gmail.com
-EMAIL_PASSWORD=sjildoazowqbvlpd
-ADMIN_NOTIFICATION_EMAIL=spkabaddigroupdhanbad@gmail.com
-```
+Set these variables in your backend deployment (Render/local .env):
 
-## How to Add Environment Variables on Render
-
-1. Go to your Render dashboard: https://dashboard.render.com
-2. Select your backend service (SP-Club-Backend)
-3. Go to "Environment" tab
-4. Click "Add Environment Variable"
-5. Add each variable:
-   - Key: `EMAIL_USER`
-   - Value: `spkabaddigroupdhanbad@gmail.com`
-6. Repeat for `EMAIL_PASSWORD` and `ADMIN_NOTIFICATION_EMAIL`
-7. Click "Save Changes"
-8. Render will automatically redeploy your service
-
-## Testing Email Configuration
-
-After deployment, test if email is configured correctly:
-
-```
-GET https://your-backend-url.onrender.com/api/test-email
+```dotenv
+BRAVO_API_KEY=your_bravo_api_key
+MAIL_SENDER_EMAIL=spkabaddigroupdhanbad@gmail.com
+MAIL_SENDER_NAME=SP Kabaddi Group Dhanbad
+FRONTEND_URL=https://spkabaddi.me
+CLUB_LOGO_URL=https://spkabaddi.me/Logo.png
 ```
 
-This should return:
-```json
-{
-  "emailConfigured": true,
-  "emailUser": "Configured",
-  "emailPassword": "Configured",
-  "nodeEnv": "production"
-}
-```
+## Notes
 
-## Checking Logs on Render
+- `BRAVO_API_KEY`: single required mail API key.
+- `MAIL_SENDER_EMAIL`: from address shown in emails.
+- `MAIL_SENDER_NAME`: sender display name.
+- `FRONTEND_URL`: used for links (for example forgot-password link in email).
+- `CLUB_LOGO_URL`: optional but recommended for branded templates.
 
-1. Go to your service in Render dashboard
-2. Click on "Logs" tab
-3. Look for these messages:
-   - `✅ Email server is ready to send messages` - Email is configured correctly
-   - `❌ Email transporter verification failed` - Email configuration issue
-   - `📧 Attempting to send approval email to:` - Email sending initiated
-   - `✅ SUCCESS: Approval email sent to` - Email sent successfully
-   - `❌ FAILED: Could not send approval email` - Email sending failed
+## Current Mail Flows Using Bravo/Brevo
 
-## Common Issues
+- Application processing email (on registration submit)
+- Application approval email (with credential + change-password guidance)
+- Player forgot-password OTP email
+- Admin forgot-password OTP email
+- Admin custom broadcast mails (all/selected players)
 
-### Issue 1: "Invalid login" or "Username and Password not accepted"
-**Solution**: Make sure you're using a Gmail App Password, not your regular Gmail password.
+## Mail Toggle
 
-To create Gmail App Password:
-1. Go to Google Account: https://myaccount.google.com/security
-2. Enable 2-Step Verification (if not already enabled)
-3. Go to "App passwords"
-4. Generate a new app password for "Mail"
-5. Use this password in `EMAIL_PASSWORD`
+Admin can enable/disable mail from admin panel Mail Center.
+If toggle is OFF, mail requests are skipped.
 
-### Issue 2: Environment variables not loading
-**Solution**: 
-- Verify variables are saved in Render dashboard
-- Check for typos in variable names
-- Trigger a manual redeploy after adding variables
+## Troubleshooting
 
-### Issue 3: Emails going to spam
-**Solution**:
-- Ask users to check spam/junk folder
-- Add your domain to Gmail's approved senders
-- Consider using a professional email service like SendGrid or AWS SES for production
+### Mail not sending
 
-## Production Recommendations
+1. Verify `BRAVO_API_KEY` is set and valid.
+2. Check backend logs for "Brevo send failed" details.
+3. Ensure `MAIL_SENDER_EMAIL` is verified in your Bravo/Brevo account.
+4. Ensure deployment has latest environment variables and is redeployed.
 
-For production use, consider:
-1. **SendGrid**: Free tier includes 100 emails/day
-2. **AWS SES**: Pay-as-you-go pricing
-3. **Mailgun**: Free tier includes 5,000 emails/month
+### OTP not received
 
-These services have better deliverability than Gmail SMTP.
+1. Check spam/junk folder.
+2. Verify mail toggle is ON in Admin Mail Center.
+3. Confirm backend can access `https://api.brevo.com/v3/smtp/email`.

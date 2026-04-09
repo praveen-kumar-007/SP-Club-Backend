@@ -31,6 +31,13 @@ const registrationSchema = new mongoose.Schema({
   clubDetails: { type: String, required: true },
   message: { type: String },
   photo: { type: String, required: true },
+  certificates: [
+    {
+      title: { type: String, required: true },
+      fileUrl: { type: String, required: true },
+      issuedAt: { type: Date, default: Date.now }
+    }
+  ],
 
   // Preferences
   newsletter: { type: Boolean, default: true },
@@ -79,12 +86,87 @@ const registrationSchema = new mongoose.Schema({
   idCardRole: {
     type: String,
     default: null
-  }
+  },
+
+  // Player login credentials managed by admin
+  playerPasswordHash: {
+    type: String,
+    default: null
+  },
+  playerPasswordSetAt: {
+    type: Date,
+    default: null
+  },
+  playerFailedLoginAttempts: {
+    type: Number,
+    default: 0
+  },
+  playerForcePasswordReset: {
+    type: Boolean,
+    default: false
+  },
+  playerLastFailedLoginAt: {
+    type: Date,
+    default: null
+  },
+  playerPasswordResetOtpHash: {
+    type: String,
+    default: null
+  },
+  playerPasswordResetOtpExpiresAt: {
+    type: Date,
+    default: null
+  },
+  playerPasswordResetRequestedAt: {
+    type: Date,
+    default: null
+  },
+
+  // Attendance records marked by player from dashboard
+  attendance: [
+    {
+      date: {
+        type: String,
+        required: true
+      },
+      status: {
+        type: String,
+        enum: ['present', 'absent'],
+        default: 'present'
+      },
+      location: {
+        latitude: { type: Number, required: true },
+        longitude: { type: Number, required: true },
+        accuracy: { type: Number, default: null },
+        address: { type: String, default: null }
+      },
+      markedByType: {
+        type: String,
+        enum: ['player', 'admin'],
+        default: 'player'
+      },
+      markedByAdminId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Admin',
+        default: null
+      },
+      adminNote: {
+        type: String,
+        default: null
+      },
+      markedAt: {
+        type: Date,
+        default: Date.now
+      }
+    }
+  ]
 });
 
 // Indexes
 registrationSchema.index({ status: 1, registeredAt: -1 });
 registrationSchema.index({ name: 'text', email: 'text', aadharNumber: 'text' });
 registrationSchema.index({ registeredAt: -1 });
+registrationSchema.index({ idCardNumber: 1, status: 1 });
+registrationSchema.index({ 'attendance.date': 1 });
 
 module.exports = mongoose.model('Registration', registrationSchema);

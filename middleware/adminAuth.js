@@ -1,6 +1,7 @@
 // middleware/adminAuth.js
 const jwt = require('jsonwebtoken');
 const Admin = require('../models/admin');
+const ADMIN_JWT_SECRET = process.env.ADMIN_JWT_SECRET || process.env.JWT_SECRET || 'sp_club_admin_secret_key_2024';
 
 const adminAuth = (req, res, next) => {
   try {
@@ -12,7 +13,7 @@ const adminAuth = (req, res, next) => {
     }
 
     // Verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'sp_club_admin_secret_key_2024');
+    const decoded = jwt.verify(token, ADMIN_JWT_SECRET);
     req.adminId = decoded.id;
     req.admin = decoded;
 
