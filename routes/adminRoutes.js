@@ -576,240 +576,280 @@ router.put(
     { name: "aadharBack", maxCount: 1 },
   ]),
   async (req, res) => {
-  try {
-    const {
-      name,
-      fathersName,
-      email,
-      phone,
-      parentsPhone,
-      gender,
-      bloodGroup,
-      role,
-      dob,
-      aadharNumber,
-      address,
-      clubDetails,
-      message,
-      kabaddiPositions,
-      newsletter,
-      terms,
-      kitSize,
-      jerseyNumber,
-      idCardNumber,
-      idCardRole,
-      oldPhoto,
-      oldAadharFront,
-      oldAadharBack,
-    } = req.body || {};
+    try {
+      const {
+        name,
+        fathersName,
+        email,
+        phone,
+        parentsPhone,
+        gender,
+        bloodGroup,
+        role,
+        dob,
+        aadharNumber,
+        address,
+        clubDetails,
+        message,
+        kabaddiPositions,
+        newsletter,
+        terms,
+        kitSize,
+        jerseyNumber,
+        idCardNumber,
+        idCardRole,
+        oldPhoto,
+        oldAadharFront,
+        oldAadharBack,
+      } = req.body || {};
 
-    const files = req.files || {};
+      const files = req.files || {};
 
-    const registration = await Registration.findById(req.params.id);
-    if (!registration) {
-      return res.status(404).json({ message: "Registration not found" });
-    }
-
-    if (name !== undefined) registration.name = String(name).trim();
-    if (fathersName !== undefined) registration.fathersName = String(fathersName).trim();
-    if (email !== undefined) registration.email = String(email).trim();
-    if (phone !== undefined) registration.phone = String(phone).trim();
-    if (parentsPhone !== undefined) registration.parentsPhone = String(parentsPhone).trim();
-
-    if (gender !== undefined) {
-      const normalizedGender = String(gender).trim().toLowerCase();
-      if (!["male", "female", "other"].includes(normalizedGender)) {
-        return res.status(400).json({ message: "Invalid gender value." });
+      const registration = await Registration.findById(req.params.id);
+      if (!registration) {
+        return res.status(404).json({ message: "Registration not found" });
       }
-      registration.gender = normalizedGender;
-    }
 
-    if (bloodGroup !== undefined) {
-      const normalizedBloodGroup = String(bloodGroup).trim().toUpperCase();
-      const validBloodGroups = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
-      if (!validBloodGroups.includes(normalizedBloodGroup)) {
-        return res.status(400).json({ message: "Invalid blood group value." });
+      if (name !== undefined) registration.name = String(name).trim();
+      if (fathersName !== undefined)
+        registration.fathersName = String(fathersName).trim();
+      if (email !== undefined) registration.email = String(email).trim();
+      if (phone !== undefined) registration.phone = String(phone).trim();
+      if (parentsPhone !== undefined)
+        registration.parentsPhone = String(parentsPhone).trim();
+
+      if (gender !== undefined) {
+        const normalizedGender = String(gender).trim().toLowerCase();
+        if (!["male", "female", "other"].includes(normalizedGender)) {
+          return res.status(400).json({ message: "Invalid gender value." });
+        }
+        registration.gender = normalizedGender;
       }
-      registration.bloodGroup = normalizedBloodGroup;
-    }
 
-    if (role !== undefined) registration.role = String(role).trim();
+      if (bloodGroup !== undefined) {
+        const normalizedBloodGroup = String(bloodGroup).trim().toUpperCase();
+        const validBloodGroups = [
+          "A+",
+          "A-",
+          "B+",
+          "B-",
+          "AB+",
+          "AB-",
+          "O+",
+          "O-",
+        ];
+        if (!validBloodGroups.includes(normalizedBloodGroup)) {
+          return res
+            .status(400)
+            .json({ message: "Invalid blood group value." });
+        }
+        registration.bloodGroup = normalizedBloodGroup;
+      }
 
-    if (idCardRole !== undefined) {
-      const normalizedIdCardRole = String(idCardRole || "").trim();
-      registration.idCardRole = normalizedIdCardRole || null;
-    }
+      if (role !== undefined) registration.role = String(role).trim();
 
-    if (idCardNumber !== undefined) {
-      const normalizedIdCardNumber = String(idCardNumber || "").trim();
+      if (idCardRole !== undefined) {
+        const normalizedIdCardRole = String(idCardRole || "").trim();
+        registration.idCardRole = normalizedIdCardRole || null;
+      }
 
-      if (normalizedIdCardNumber) {
-        const duplicateIdCard = await Registration.findOne({
-          _id: { $ne: registration._id },
-          idCardNumber: normalizedIdCardNumber,
-        });
+      if (idCardNumber !== undefined) {
+        const normalizedIdCardNumber = String(idCardNumber || "").trim();
 
-        if (duplicateIdCard) {
-          return res.status(409).json({
-            message: "ID card number is already assigned to another registration.",
+        if (normalizedIdCardNumber) {
+          const duplicateIdCard = await Registration.findOne({
+            _id: { $ne: registration._id },
+            idCardNumber: normalizedIdCardNumber,
           });
-        }
 
-        registration.idCardNumber = normalizedIdCardNumber;
-        if (!registration.idCardGeneratedAt) {
-          registration.idCardGeneratedAt = new Date();
-        }
-      }
-    }
-
-    if (dob !== undefined) {
-      const parsedDob = new Date(dob);
-      if (Number.isNaN(parsedDob.getTime())) {
-        return res.status(400).json({ message: "Invalid date of birth." });
-      }
-      registration.dob = parsedDob;
-    }
-
-    if (aadharNumber !== undefined) {
-      const sanitizedAadhar = String(aadharNumber).trim();
-      if (!/^\d{12}$/.test(sanitizedAadhar)) {
-        return res.status(400).json({ message: "Aadhar number must be exactly 12 digits." });
-      }
-
-      if (sanitizedAadhar !== registration.aadharNumber) {
-        const existingAadhar = await Registration.findOne({
-          _id: { $ne: registration._id },
-          aadharNumber: sanitizedAadhar,
-        });
-
-        if (existingAadhar) {
-          return res.status(409).json({ message: "Aadhar number already exists for another registration." });
-        }
-      }
-
-      registration.aadharNumber = sanitizedAadhar;
-    }
-
-    if (address !== undefined) registration.address = String(address).trim();
-    if (clubDetails !== undefined) registration.clubDetails = String(clubDetails).trim();
-    if (message !== undefined) registration.message = String(message).trim();
-
-    if (kabaddiPositions !== undefined) {
-      let positions = [];
-
-      if (Array.isArray(kabaddiPositions)) {
-        positions = kabaddiPositions;
-      } else if (typeof kabaddiPositions === "string") {
-        const raw = kabaddiPositions.trim();
-        if (raw.startsWith("[")) {
-          try {
-            const parsed = JSON.parse(raw);
-            if (Array.isArray(parsed)) {
-              positions = parsed;
-            }
-          } catch {
-            positions = raw.split(",");
+          if (duplicateIdCard) {
+            return res.status(409).json({
+              message:
+                "ID card number is already assigned to another registration.",
+            });
           }
+
+          registration.idCardNumber = normalizedIdCardNumber;
+          if (!registration.idCardGeneratedAt) {
+            registration.idCardGeneratedAt = new Date();
+          }
+        }
+      }
+
+      if (dob !== undefined) {
+        const parsedDob = new Date(dob);
+        if (Number.isNaN(parsedDob.getTime())) {
+          return res.status(400).json({ message: "Invalid date of birth." });
+        }
+        registration.dob = parsedDob;
+      }
+
+      if (aadharNumber !== undefined) {
+        const sanitizedAadhar = String(aadharNumber).trim();
+        if (!/^\d{12}$/.test(sanitizedAadhar)) {
+          return res
+            .status(400)
+            .json({ message: "Aadhar number must be exactly 12 digits." });
+        }
+
+        if (sanitizedAadhar !== registration.aadharNumber) {
+          const existingAadhar = await Registration.findOne({
+            _id: { $ne: registration._id },
+            aadharNumber: sanitizedAadhar,
+          });
+
+          if (existingAadhar) {
+            return res
+              .status(409)
+              .json({
+                message:
+                  "Aadhar number already exists for another registration.",
+              });
+          }
+        }
+
+        registration.aadharNumber = sanitizedAadhar;
+      }
+
+      if (address !== undefined) registration.address = String(address).trim();
+      if (clubDetails !== undefined)
+        registration.clubDetails = String(clubDetails).trim();
+      if (message !== undefined) registration.message = String(message).trim();
+
+      if (kabaddiPositions !== undefined) {
+        let positions = [];
+
+        if (Array.isArray(kabaddiPositions)) {
+          positions = kabaddiPositions;
+        } else if (typeof kabaddiPositions === "string") {
+          const raw = kabaddiPositions.trim();
+          if (raw.startsWith("[")) {
+            try {
+              const parsed = JSON.parse(raw);
+              if (Array.isArray(parsed)) {
+                positions = parsed;
+              }
+            } catch {
+              positions = raw.split(",");
+            }
+          } else {
+            positions = raw ? raw.split(",") : [];
+          }
+        }
+
+        registration.kabaddiPositions = positions
+          .map((item) => String(item || "").trim())
+          .filter(Boolean);
+      }
+
+      const parsedNewsletter = parseBoolean(newsletter);
+      if (parsedNewsletter !== null) {
+        registration.newsletter = parsedNewsletter;
+      }
+
+      const parsedTerms = parseBoolean(terms);
+      if (parsedTerms !== null) {
+        registration.terms = parsedTerms;
+      }
+
+      if (kitSize !== undefined) {
+        registration.kitSize =
+          typeof kitSize === "string"
+            ? kitSize.trim() || null
+            : registration.kitSize;
+      }
+
+      if (jerseyNumber !== undefined) {
+        if (jerseyNumber === null || jerseyNumber === "") {
+          registration.jerseyNumber = null;
         } else {
-          positions = raw ? raw.split(",") : [];
+          const jersey = Number(jerseyNumber);
+          if (!Number.isInteger(jersey) || jersey < 1 || jersey > 99) {
+            return res.status(400).json({
+              message: "Jersey number must be a whole number between 1 and 99.",
+            });
+          }
+
+          const duplicate = await Registration.findOne({
+            _id: { $ne: registration._id },
+            gender: registration.gender,
+            jerseyNumber: jersey,
+          });
+
+          if (duplicate) {
+            return res.status(409).json({
+              message:
+                "This jersey number is already assigned to another player of the same gender.",
+            });
+          }
+
+          registration.jerseyNumber = jersey;
         }
       }
 
-      registration.kabaddiPositions = positions
-        .map((item) => String(item || "").trim())
-        .filter(Boolean);
-    }
+      const oldPhotoUrl = registration.photo;
+      const oldAadharFrontUrl = registration.aadharFront;
+      const oldAadharBackUrl = registration.aadharBack;
 
-    const parsedNewsletter = parseBoolean(newsletter);
-    if (parsedNewsletter !== null) {
-      registration.newsletter = parsedNewsletter;
-    }
+      const newPhotoUrl = files.photo?.[0]?.path || null;
+      const newAadharFrontUrl = files.aadharFront?.[0]?.path || null;
+      const newAadharBackUrl = files.aadharBack?.[0]?.path || null;
 
-    const parsedTerms = parseBoolean(terms);
-    if (parsedTerms !== null) {
-      registration.terms = parsedTerms;
-    }
+      if (newPhotoUrl) registration.photo = newPhotoUrl;
+      if (newAadharFrontUrl) registration.aadharFront = newAadharFrontUrl;
+      if (newAadharBackUrl) registration.aadharBack = newAadharBackUrl;
 
-    if (kitSize !== undefined) {
-      registration.kitSize = typeof kitSize === "string" ? kitSize.trim() || null : registration.kitSize;
-    }
+      await registration.save();
 
-    if (jerseyNumber !== undefined) {
-      if (jerseyNumber === null || jerseyNumber === "") {
-        registration.jerseyNumber = null;
-      } else {
-        const jersey = Number(jerseyNumber);
-        if (!Number.isInteger(jersey) || jersey < 1 || jersey > 99) {
-          return res.status(400).json({
-            message: "Jersey number must be a whole number between 1 and 99.",
-          });
-        }
+      const cleanupTargets = [];
 
-        const duplicate = await Registration.findOne({
-          _id: { $ne: registration._id },
-          gender: registration.gender,
-          jerseyNumber: jersey,
+      if (newPhotoUrl) {
+        cleanupTargets.push({
+          oldUrl: oldPhoto || oldPhotoUrl,
+          newUrl: newPhotoUrl,
         });
-
-        if (duplicate) {
-          return res.status(409).json({
-            message:
-              "This jersey number is already assigned to another player of the same gender.",
-          });
-        }
-
-        registration.jerseyNumber = jersey;
       }
-    }
+      if (newAadharFrontUrl) {
+        cleanupTargets.push({
+          oldUrl: oldAadharFront || oldAadharFrontUrl,
+          newUrl: newAadharFrontUrl,
+        });
+      }
+      if (newAadharBackUrl) {
+        cleanupTargets.push({
+          oldUrl: oldAadharBack || oldAadharBackUrl,
+          newUrl: newAadharBackUrl,
+        });
+      }
 
-    const oldPhotoUrl = registration.photo;
-    const oldAadharFrontUrl = registration.aadharFront;
-    const oldAadharBackUrl = registration.aadharBack;
+      for (const target of cleanupTargets) {
+        const oldPublicId = extractCloudinaryPublicId(target.oldUrl);
+        const newPublicId = extractCloudinaryPublicId(target.newUrl);
 
-    const newPhotoUrl = files.photo?.[0]?.path || null;
-    const newAadharFrontUrl = files.aadharFront?.[0]?.path || null;
-    const newAadharBackUrl = files.aadharBack?.[0]?.path || null;
-
-    if (newPhotoUrl) registration.photo = newPhotoUrl;
-    if (newAadharFrontUrl) registration.aadharFront = newAadharFrontUrl;
-    if (newAadharBackUrl) registration.aadharBack = newAadharBackUrl;
-
-    await registration.save();
-
-    const cleanupTargets = [];
-
-    if (newPhotoUrl) {
-      cleanupTargets.push({ oldUrl: oldPhoto || oldPhotoUrl, newUrl: newPhotoUrl });
-    }
-    if (newAadharFrontUrl) {
-      cleanupTargets.push({ oldUrl: oldAadharFront || oldAadharFrontUrl, newUrl: newAadharFrontUrl });
-    }
-    if (newAadharBackUrl) {
-      cleanupTargets.push({ oldUrl: oldAadharBack || oldAadharBackUrl, newUrl: newAadharBackUrl });
-    }
-
-    for (const target of cleanupTargets) {
-      const oldPublicId = extractCloudinaryPublicId(target.oldUrl);
-      const newPublicId = extractCloudinaryPublicId(target.newUrl);
-
-      if (oldPublicId && oldPublicId !== newPublicId) {
-        try {
-          await cloudinary.uploader.destroy(oldPublicId, { resource_type: "image" });
-        } catch (cleanupError) {
-          console.warn("Cloudinary cleanup failed for old asset:", oldPublicId, cleanupError?.message || cleanupError);
+        if (oldPublicId && oldPublicId !== newPublicId) {
+          try {
+            await cloudinary.uploader.destroy(oldPublicId, {
+              resource_type: "image",
+            });
+          } catch (cleanupError) {
+            console.warn(
+              "Cloudinary cleanup failed for old asset:",
+              oldPublicId,
+              cleanupError?.message || cleanupError,
+            );
+          }
         }
       }
-    }
 
-    return res.json({
-      message: "Registration updated successfully",
-      registration,
-    });
-  } catch (error) {
-    console.error("❌ Error updating registration:", error);
-    res.status(500).json({ message: "Error updating registration" });
-  }
-},
+      return res.json({
+        message: "Registration updated successfully",
+        registration,
+      });
+    } catch (error) {
+      console.error("❌ Error updating registration:", error);
+      res.status(500).json({ message: "Error updating registration" });
+    }
+  },
 );
 
 // PUT /api/admin/registrations/:id/approve - Approve a registration
