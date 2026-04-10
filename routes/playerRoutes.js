@@ -401,7 +401,7 @@ router.get("/me", playerAuth, async (req, res) => {
   try {
     const player = await Registration.findById(req.playerId)
       .select(
-        "_id name email role idCardNumber phone parentsPhone aadharNumber dob bloodGroup gender address clubDetails photo certificates",
+        "_id name email role idCardNumber phone parentsPhone aadharNumber dob bloodGroup gender address clubDetails photo certificates kitSize jerseyNumber status",
       )
       .lean();
 
@@ -424,6 +424,9 @@ router.get("/me", playerAuth, async (req, res) => {
         gender: player.gender || "",
         address: player.address || "",
         clubDetails: player.clubDetails || "",
+        kitSize: player.kitSize || "",
+        jerseyNumber: player.jerseyNumber || null,
+        status: player.status || "pending",
         photo: player.photo || "",
         certificates: Array.isArray(player.certificates)
           ? player.certificates
@@ -432,6 +435,77 @@ router.get("/me", playerAuth, async (req, res) => {
     });
   } catch (error) {
     return res.status(500).json({ message: "Failed to fetch player profile" });
+  }
+});
+
+router.put("/me", playerAuth, async (req, res) => {
+  try {
+    const { kitSize, jerseyNumber } = req.body;
+
+    const player = await Registration.findById(req.playerId);
+    if (!player) {
+      return res.status(404).json({ message: "Player not found" });
+    }
+
+    if (kitSize !== undefined) {
+      player.kitSize = typeof kitSize === "string" ? kitSize.trim() || null : player.kitSize;
+    }
+
+    if (jerseyNumber !== undefined) {
+      if (jerseyNumber === null || jerseyNumber === "") {
+        player.jerseyNumber = null;
+      } else {
+        const jersey = Number(jerseyNumber);
+        if (!Number.isInteger(jersey) || jersey < 1 || jersey > 99) {
+          return res.status(400).json({
+            message: "Jersey number must be a whole number between 1 and 99.",
+          });
+        }
+
+        const duplicate = await Registration.findOne({
+          _id: { $ne: player._id },
+          gender: player.gender,
+          jerseyNumber: jersey,
+        });
+
+        if (duplicate) {
+          return res.status(409).json({
+            message:
+              "This jersey number is already assigned to another player of the same gender.",
+          });
+        }
+
+        player.jerseyNumber = jersey;
+      }
+    }
+
+    await player.save();
+
+    return res.json({
+      message: "Profile updated successfully",
+      player: {
+        id: player._id,
+        name: player.name,
+        email: player.email,
+        role: player.role,
+        idCardNumber: player.idCardNumber,
+        phone: player.phone || "",
+        parentsPhone: player.parentsPhone || "",
+        aadharNumber: player.aadharNumber || "",
+        dob: player.dob,
+        bloodGroup: player.bloodGroup || "",
+        gender: player.gender || "",
+        address: player.address || "",
+        clubDetails: player.clubDetails || "",
+        kitSize: player.kitSize || "",
+        jerseyNumber: player.jerseyNumber || null,
+        status: player.status || "pending",
+        photo: player.photo || "",
+      },
+    });
+  } catch (error) {
+    console.error("Player profile update error:", error);
+    return res.status(500).json({ message: "Failed to update profile" });
   }
 });
 

@@ -33,7 +33,7 @@ const playerAuth = async (req, res, next) => {
     if (player.status !== "approved") {
       return res
         .status(403)
-        .json({ message: "Player account is not eligible for login" });
+        .json({ message: "Player account is not approved yet" });
     }
 
     req.playerId = player._id;

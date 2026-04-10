@@ -461,13 +461,20 @@ router.get("/registrations", adminAuth, async (req, res) => {
       }
     }
 
-    // Search by name or email
+    // Search by name, email, Aadhar, kit or jersey number
     if (search) {
+      const regex = { $regex: search, $options: "i" };
       query.$or = [
-        { name: { $regex: search, $options: "i" } },
-        { email: { $regex: search, $options: "i" } },
-        { aadharNumber: { $regex: search, $options: "i" } },
+        { name: regex },
+        { email: regex },
+        { aadharNumber: regex },
+        { kitSize: regex },
       ];
+
+      const jersey = Number(search);
+      if (!Number.isNaN(jersey) && Number.isInteger(jersey)) {
+        query.$or.push({ jerseyNumber: jersey });
+      }
     }
 
     const skip = (page - 1) * limit;
@@ -518,6 +525,59 @@ router.get("/registrations/:id", adminAuth, async (req, res) => {
   } catch (error) {
     console.error("❌ Error fetching registration:", error);
     res.status(500).json({ message: "Error fetching registration" });
+  }
+});
+
+router.put("/registrations/:id", adminAuth, async (req, res) => {
+  try {
+    const { kitSize, jerseyNumber } = req.body;
+
+    const registration = await Registration.findById(req.params.id);
+    if (!registration) {
+      return res.status(404).json({ message: "Registration not found" });
+    }
+
+    if (kitSize !== undefined) {
+      registration.kitSize = typeof kitSize === "string" ? kitSize.trim() || null : registration.kitSize;
+    }
+
+    if (jerseyNumber !== undefined) {
+      if (jerseyNumber === null || jerseyNumber === "") {
+        registration.jerseyNumber = null;
+      } else {
+        const jersey = Number(jerseyNumber);
+        if (!Number.isInteger(jersey) || jersey < 1 || jersey > 99) {
+          return res.status(400).json({
+            message: "Jersey number must be a whole number between 1 and 99.",
+          });
+        }
+
+        const duplicate = await Registration.findOne({
+          _id: { $ne: registration._id },
+          gender: registration.gender,
+          jerseyNumber: jersey,
+        });
+
+        if (duplicate) {
+          return res.status(409).json({
+            message:
+              "This jersey number is already assigned to another player of the same gender.",
+          });
+        }
+
+        registration.jerseyNumber = jersey;
+      }
+    }
+
+    await registration.save();
+
+    return res.json({
+      message: "Registration updated successfully",
+      registration,
+    });
+  } catch (error) {
+    console.error("❌ Error updating registration:", error);
+    res.status(500).json({ message: "Error updating registration" });
   }
 });
 
@@ -1247,15 +1307,29 @@ router.get("/players", adminAuth, async (req, res) => {
     };
 
     if (search) {
+      const regex = { $regex: search, $options: "i" };
       query.$or = [
-        { name: { $regex: search, $options: "i" } },
-        { idCardNumber: { $regex: search, $options: "i" } },
-        { email: { $regex: search, $options: "i" } },
+        { name: regex },
+        { idCardNumber: regex },
+        { email: regex },
+        { phone: regex },
+        { role: regex },
+        { gender: regex },
+        { kitSize: regex },
+        { clubDetails: regex },
+        { aadharNumber: regex },
       ];
+
+      const numericSearch = Number(search);
+      if (!Number.isNaN(numericSearch) && Number.isInteger(numericSearch)) {
+        query.$or.push({ jerseyNumber: numericSearch });
+      }
     }
 
     const players = await Registration.find(query)
-      .select("_id name email phone role status idCardNumber attendance")
+      .select(
+        "_id name email phone role status idCardNumber attendance gender kitSize jerseyNumber clubDetails aadharNumber address",
+      )
       .sort({ name: 1 })
       .lean();
 

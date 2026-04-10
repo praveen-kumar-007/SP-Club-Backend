@@ -34,6 +34,7 @@ router.post(
         address,
         aadharNumber,
         clubDetails,
+        kitSize,
         message,
         newsletter,
         terms,
@@ -52,6 +53,14 @@ router.post(
       // Convert booleans safely
       newsletter = newsletter === "true" || newsletter === true;
       terms = terms === "true" || terms === true;
+
+      // Normalize optional kit properties
+      if (typeof kitSize === "string") {
+        kitSize = kitSize.trim() || null;
+      }
+
+      // Ensure jersey number is never collected during registration.
+      const jerseyNumber = null;
 
       // Parse kabaddiPositions SAFELY
       let kabaddiPositions = [];
@@ -134,6 +143,8 @@ router.post(
         address,
         aadharNumber,
         clubDetails,
+        kitSize,
+        jerseyNumber,
         message,
         photo: req.files.photo[0].path,
         aadharFront: req.files.aadharFront[0].path,

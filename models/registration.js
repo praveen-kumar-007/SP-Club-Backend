@@ -29,6 +29,17 @@ const registrationSchema = new mongoose.Schema({
 
   // Club & Registration Info
   clubDetails: { type: String, required: true },
+  kitSize: {
+    type: String,
+    enum: ["XS", "S", "M", "L", "XL", "XXL", "XXXL"],
+    default: null,
+  },
+  jerseyNumber: {
+    type: Number,
+    min: 1,
+    max: 99,
+    sparse: true,
+  },
   message: { type: String },
   photo: { type: String, required: true },
   certificates: [
@@ -187,7 +198,19 @@ registrationSchema.index({ status: 1, registeredAt: -1 });
 registrationSchema.index({ name: "text", email: "text", aadharNumber: "text" });
 registrationSchema.index({ registeredAt: -1 });
 registrationSchema.index({ idCardNumber: 1, status: 1 });
+registrationSchema.index({ gender: 1, jerseyNumber: 1 }, { unique: true, partialFilterExpression: { jerseyNumber: { $exists: true, $ne: null } } });
 registrationSchema.index({ "attendance.date": 1 });
+
+registrationSchema.path("jerseyNumber").validate(async function (value) {
+  if (value === null || value === undefined) return true;
+  if (!this.gender) return true;
+  const existing = await mongoose.models.Registration.findOne({
+    _id: { $ne: this._id },
+    gender: this.gender,
+    jerseyNumber: value,
+  });
+  return !existing;
+}, "This jersey number is already assigned to another player of the same gender.");
 
 registrationSchema.pre("save", function (next) {
   if (
