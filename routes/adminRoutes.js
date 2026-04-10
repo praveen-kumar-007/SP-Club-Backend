@@ -1301,10 +1301,12 @@ const getMonthBounds = (monthParam) => {
 router.get("/players", adminAuth, async (req, res) => {
   try {
     const search = (req.query.search || "").trim();
+    const showAllPlayers = String(req.query.all).toLowerCase() === "true";
 
-    const query = {
-      status: "approved",
-    };
+    const query = {};
+    if (!showAllPlayers) {
+      query.status = "approved";
+    }
 
     if (search) {
       const regex = { $regex: search, $options: "i" };
