@@ -109,6 +109,18 @@ const registrationSchema = new mongoose.Schema({
     type: Date,
     default: null,
   },
+  playerLastLogin: {
+    type: Date,
+    default: null,
+  },
+  playerLoginHistory: [
+    {
+      ipAddress: { type: String, default: "unknown" },
+      userAgent: { type: String, default: "" },
+      deviceName: { type: String, default: null },
+      loggedInAt: { type: Date, default: Date.now },
+    },
+  ],
   playerPasswordResetOtpHash: {
     type: String,
     default: null,
@@ -176,5 +188,16 @@ registrationSchema.index({ name: "text", email: "text", aadharNumber: "text" });
 registrationSchema.index({ registeredAt: -1 });
 registrationSchema.index({ idCardNumber: 1, status: 1 });
 registrationSchema.index({ "attendance.date": 1 });
+
+registrationSchema.pre("save", function (next) {
+  if (
+    Array.isArray(this.playerLoginHistory) &&
+    this.playerLoginHistory.length > 2
+  ) {
+    this.playerLoginHistory = this.playerLoginHistory.slice(-2);
+  }
+
+  next();
+});
 
 module.exports = mongoose.model("Registration", registrationSchema);

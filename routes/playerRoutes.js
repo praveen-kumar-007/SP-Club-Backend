@@ -44,6 +44,24 @@ const normalizePhone = (phoneValue) => {
 
 const generateOtp = () => String(Math.floor(100000 + Math.random() * 900000));
 
+const getClientIp = (req) => {
+  const forwarded = req.headers["x-forwarded-for"];
+
+  if (typeof forwarded === "string" && forwarded.trim()) {
+    return forwarded
+      .split(",")[0]
+      .trim()
+      .replace(/^::ffff:/, "");
+  }
+
+  if (Array.isArray(forwarded) && forwarded.length > 0) {
+    return String(forwarded[0] || "unknown").replace(/^::ffff:/, "");
+  }
+
+  const fallbackIp = req.ip || req.socket?.remoteAddress || "unknown";
+  return String(fallbackIp).replace(/^::ffff:/, "");
+};
+
 const getApprovedPlayerByEmail = async (email) =>
   Registration.findOne({
     email: new RegExp(
@@ -120,6 +138,8 @@ const getMonthBounds = (monthParam) => {
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
+    const clientIp = getClientIp(req);
+    const userAgent = String(req.headers["user-agent"] || "");
 
     if (!email || !password) {
       return res
@@ -162,7 +182,7 @@ router.post("/login", async (req, res) => {
       return res.status(401).json({ message: "Invalid email or password" });
     }
 
-    // Successful login clears failed attempt counters.
+    // Successful login clears failed attempt counters and updates latest login trail.
     if (
       player.playerFailedLoginAttempts ||
       player.playerForcePasswordReset ||
@@ -171,8 +191,22 @@ router.post("/login", async (req, res) => {
       player.playerFailedLoginAttempts = 0;
       player.playerForcePasswordReset = false;
       player.playerLastFailedLoginAt = null;
-      await player.save();
     }
+
+    player.playerLastLogin = new Date();
+    player.playerLoginHistory = [
+      ...(Array.isArray(player.playerLoginHistory)
+        ? player.playerLoginHistory
+        : []),
+      {
+        ipAddress: clientIp,
+        userAgent,
+        deviceName: "Web Browser",
+        loggedInAt: new Date(),
+      },
+    ].slice(-2);
+
+    await player.save();
 
     const token = jwt.sign(
       {
@@ -571,12 +605,10 @@ router.post("/attendance/mark", playerAuth, async (req, res) => {
     }
 
     if (!isValidAccuracy) {
-      return res
-        .status(400)
-        .json({
-          message:
-            "Accurate GPS location is required. Please enable precise location.",
-        });
+      return res.status(400).json({
+        message:
+          "Accurate GPS location is required. Please enable precise location.",
+      });
     }
 
     const MAX_ALLOWED_ACCURACY_METERS = 100;

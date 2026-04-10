@@ -37,6 +37,24 @@ const normalizePhone = (phoneValue) => {
 
 const generateOtp = () => String(Math.floor(100000 + Math.random() * 900000));
 
+const getClientIp = (req) => {
+  const forwarded = req.headers["x-forwarded-for"];
+
+  if (typeof forwarded === "string" && forwarded.trim()) {
+    return forwarded
+      .split(",")[0]
+      .trim()
+      .replace(/^::ffff:/, "");
+  }
+
+  if (Array.isArray(forwarded) && forwarded.length > 0) {
+    return String(forwarded[0] || "unknown").replace(/^::ffff:/, "");
+  }
+
+  const fallbackIp = req.ip || req.socket?.remoteAddress || "unknown";
+  return String(fallbackIp).replace(/^::ffff:/, "");
+};
+
 // ========== AUTHENTICATION ROUTES ==========
 
 // POST /api/admin/register - Create first admin (Super Admin setup)
@@ -107,6 +125,8 @@ router.post("/register", async (req, res) => {
 router.post("/login", async (req, res) => {
   try {
     const { username, password, deviceId, deviceName } = req.body;
+    const clientIp = getClientIp(req);
+    const userAgent = String(req.headers["user-agent"] || "");
 
     if (!username || !password) {
       return res
@@ -190,6 +210,16 @@ router.post("/login", async (req, res) => {
 
     // Update last login
     admin.lastLogin = new Date();
+    admin.loginHistory = [
+      ...(Array.isArray(admin.loginHistory) ? admin.loginHistory : []),
+      {
+        ipAddress: clientIp,
+        userAgent,
+        deviceId: deviceId || null,
+        deviceName: deviceName || "Unknown Device",
+        loggedInAt: new Date(),
+      },
+    ].slice(-2);
     await admin.save();
 
     if (process.env.NODE_ENV === "development") {
@@ -648,11 +678,9 @@ router.post("/mail/send", adminAuth, async (req, res) => {
     });
 
     if (result?.skipped && result.reason === "disabled") {
-      return res
-        .status(400)
-        .json({
-          message: "Mail sending is currently disabled from admin toggle",
-        });
+      return res.status(400).json({
+        message: "Mail sending is currently disabled from admin toggle",
+      });
     }
 
     return res.json({
@@ -1227,7 +1255,7 @@ router.get("/players", adminAuth, async (req, res) => {
     }
 
     const players = await Registration.find(query)
-      .select("_id name email phone role idCardNumber attendance")
+      .select("_id name email phone role status idCardNumber attendance")
       .sort({ name: 1 })
       .lean();
 
@@ -1242,6 +1270,53 @@ router.get("/players", adminAuth, async (req, res) => {
   } catch (error) {
     console.error("Error fetching players:", error);
     return res.status(500).json({ message: "Failed to fetch players" });
+  }
+});
+
+// GET /api/admin/login-history - Latest login history for all admins and approved players
+router.get("/login-history", adminAuth, async (req, res) => {
+  try {
+    const [admins, players] = await Promise.all([
+      Admin.find({})
+        .select("_id username email role lastLogin loginHistory")
+        .sort({ username: 1 })
+        .lean(),
+      Registration.find({ status: "approved" })
+        .select(
+          "_id name email role status idCardNumber playerLastLogin playerLoginHistory",
+        )
+        .sort({ name: 1 })
+        .lean(),
+    ]);
+
+    const normalizeHistory = (history) =>
+      (Array.isArray(history) ? history : [])
+        .sort((a, b) => new Date(b.loggedInAt) - new Date(a.loggedInAt))
+        .slice(0, 2);
+
+    return res.json({
+      admins: admins.map((admin) => ({
+        _id: admin._id,
+        username: admin.username,
+        email: admin.email,
+        role: admin.role,
+        lastLogin: admin.lastLogin || null,
+        loginHistory: normalizeHistory(admin.loginHistory),
+      })),
+      players: players.map((player) => ({
+        _id: player._id,
+        name: player.name,
+        email: player.email,
+        role: player.role,
+        status: player.status,
+        idCardNumber: player.idCardNumber || null,
+        lastLogin: player.playerLastLogin || null,
+        loginHistory: normalizeHistory(player.playerLoginHistory),
+      })),
+    });
+  } catch (error) {
+    console.error("Error fetching login history:", error);
+    return res.status(500).json({ message: "Failed to fetch login history" });
   }
 });
 
@@ -1266,12 +1341,10 @@ router.post("/players/:id/set-password", adminAuth, async (req, res) => {
     }
 
     if (player.status !== "approved" || !player.idCardNumber) {
-      return res
-        .status(400)
-        .json({
-          message:
-            "Only approved players with ID card can be assigned login password",
-        });
+      return res.status(400).json({
+        message:
+          "Only approved players with ID card can be assigned login password",
+      });
     }
 
     player.playerPasswordHash = await bcrypt.hash(password.trim(), 10);

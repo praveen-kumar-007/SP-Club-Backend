@@ -37,6 +37,15 @@ const adminSchema = new mongoose.Schema({
   lastLogin: {
     type: Date,
   },
+  loginHistory: [
+    {
+      ipAddress: { type: String, default: "unknown" },
+      userAgent: { type: String, default: "" },
+      deviceId: { type: String, default: null },
+      deviceName: { type: String, default: null },
+      loggedInAt: { type: Date, default: Date.now },
+    },
+  ],
   permissions: {
     canApprove: { type: Boolean, default: true },
     canReject: { type: Boolean, default: true },
@@ -68,6 +77,10 @@ const adminSchema = new mongoose.Schema({
 
 // Hash password before saving
 adminSchema.pre("save", async function (next) {
+  if (Array.isArray(this.loginHistory) && this.loginHistory.length > 2) {
+    this.loginHistory = this.loginHistory.slice(-2);
+  }
+
   if (!this.isModified("password")) return next();
 
   try {
