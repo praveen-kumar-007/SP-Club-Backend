@@ -6,6 +6,7 @@ const bcrypt = require("bcryptjs");
 const Admin = require("../models/admin");
 const Registration = require("../models/registration");
 const PlayerMessage = require("../models/playerMessage");
+const { cloudinary, upload } = require("../config/cloudinary");
 const {
   getMailSettings,
   setMailEnabled,
@@ -53,6 +54,44 @@ const getClientIp = (req) => {
 
   const fallbackIp = req.ip || req.socket?.remoteAddress || "unknown";
   return String(fallbackIp).replace(/^::ffff:/, "");
+};
+
+const extractCloudinaryPublicId = (url) => {
+  if (!url || typeof url !== "string") return null;
+
+  try {
+    const parsed = new URL(url);
+    const pathname = parsed.pathname;
+    const marker = "/upload/";
+    const markerIndex = pathname.indexOf(marker);
+
+    if (markerIndex === -1) return null;
+
+    const afterUpload = pathname.slice(markerIndex + marker.length);
+    const segments = afterUpload.split("/").filter(Boolean);
+
+    let startIndex = 0;
+    if (segments[0] && /^v\d+$/.test(segments[0])) {
+      startIndex = 1;
+    }
+
+    const publicIdWithExtension = segments.slice(startIndex).join("/");
+    if (!publicIdWithExtension) return null;
+
+    return publicIdWithExtension.replace(/\.[^.]+$/, "");
+  } catch {
+    return null;
+  }
+};
+
+const parseBoolean = (value) => {
+  if (typeof value === "boolean") return value;
+  if (typeof value !== "string") return null;
+
+  const normalized = value.trim().toLowerCase();
+  if (["true", "1", "yes"].includes(normalized)) return true;
+  if (["false", "0", "no"].includes(normalized)) return false;
+  return null;
 };
 
 // ========== AUTHENTICATION ROUTES ==========
@@ -528,13 +567,138 @@ router.get("/registrations/:id", adminAuth, async (req, res) => {
   }
 });
 
-router.put("/registrations/:id", adminAuth, async (req, res) => {
+router.put(
+  "/registrations/:id",
+  adminAuth,
+  upload.fields([
+    { name: "photo", maxCount: 1 },
+    { name: "aadharFront", maxCount: 1 },
+    { name: "aadharBack", maxCount: 1 },
+  ]),
+  async (req, res) => {
   try {
-    const { kitSize, jerseyNumber } = req.body;
+    const {
+      name,
+      fathersName,
+      email,
+      phone,
+      parentsPhone,
+      gender,
+      bloodGroup,
+      role,
+      dob,
+      aadharNumber,
+      address,
+      clubDetails,
+      message,
+      kabaddiPositions,
+      newsletter,
+      terms,
+      kitSize,
+      jerseyNumber,
+      oldPhoto,
+      oldAadharFront,
+      oldAadharBack,
+    } = req.body || {};
+
+    const files = req.files || {};
 
     const registration = await Registration.findById(req.params.id);
     if (!registration) {
       return res.status(404).json({ message: "Registration not found" });
+    }
+
+    if (name !== undefined) registration.name = String(name).trim();
+    if (fathersName !== undefined) registration.fathersName = String(fathersName).trim();
+    if (email !== undefined) registration.email = String(email).trim();
+    if (phone !== undefined) registration.phone = String(phone).trim();
+    if (parentsPhone !== undefined) registration.parentsPhone = String(parentsPhone).trim();
+
+    if (gender !== undefined) {
+      const normalizedGender = String(gender).trim().toLowerCase();
+      if (!["male", "female", "other"].includes(normalizedGender)) {
+        return res.status(400).json({ message: "Invalid gender value." });
+      }
+      registration.gender = normalizedGender;
+    }
+
+    if (bloodGroup !== undefined) {
+      const normalizedBloodGroup = String(bloodGroup).trim().toUpperCase();
+      const validBloodGroups = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
+      if (!validBloodGroups.includes(normalizedBloodGroup)) {
+        return res.status(400).json({ message: "Invalid blood group value." });
+      }
+      registration.bloodGroup = normalizedBloodGroup;
+    }
+
+    if (role !== undefined) registration.role = String(role).trim();
+
+    if (dob !== undefined) {
+      const parsedDob = new Date(dob);
+      if (Number.isNaN(parsedDob.getTime())) {
+        return res.status(400).json({ message: "Invalid date of birth." });
+      }
+      registration.dob = parsedDob;
+    }
+
+    if (aadharNumber !== undefined) {
+      const sanitizedAadhar = String(aadharNumber).trim();
+      if (!/^\d{12}$/.test(sanitizedAadhar)) {
+        return res.status(400).json({ message: "Aadhar number must be exactly 12 digits." });
+      }
+
+      if (sanitizedAadhar !== registration.aadharNumber) {
+        const existingAadhar = await Registration.findOne({
+          _id: { $ne: registration._id },
+          aadharNumber: sanitizedAadhar,
+        });
+
+        if (existingAadhar) {
+          return res.status(409).json({ message: "Aadhar number already exists for another registration." });
+        }
+      }
+
+      registration.aadharNumber = sanitizedAadhar;
+    }
+
+    if (address !== undefined) registration.address = String(address).trim();
+    if (clubDetails !== undefined) registration.clubDetails = String(clubDetails).trim();
+    if (message !== undefined) registration.message = String(message).trim();
+
+    if (kabaddiPositions !== undefined) {
+      let positions = [];
+
+      if (Array.isArray(kabaddiPositions)) {
+        positions = kabaddiPositions;
+      } else if (typeof kabaddiPositions === "string") {
+        const raw = kabaddiPositions.trim();
+        if (raw.startsWith("[")) {
+          try {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+              positions = parsed;
+            }
+          } catch {
+            positions = raw.split(",");
+          }
+        } else {
+          positions = raw ? raw.split(",") : [];
+        }
+      }
+
+      registration.kabaddiPositions = positions
+        .map((item) => String(item || "").trim())
+        .filter(Boolean);
+    }
+
+    const parsedNewsletter = parseBoolean(newsletter);
+    if (parsedNewsletter !== null) {
+      registration.newsletter = parsedNewsletter;
+    }
+
+    const parsedTerms = parseBoolean(terms);
+    if (parsedTerms !== null) {
+      registration.terms = parsedTerms;
     }
 
     if (kitSize !== undefined) {
@@ -569,7 +733,44 @@ router.put("/registrations/:id", adminAuth, async (req, res) => {
       }
     }
 
+    const oldPhotoUrl = registration.photo;
+    const oldAadharFrontUrl = registration.aadharFront;
+    const oldAadharBackUrl = registration.aadharBack;
+
+    const newPhotoUrl = files.photo?.[0]?.path || null;
+    const newAadharFrontUrl = files.aadharFront?.[0]?.path || null;
+    const newAadharBackUrl = files.aadharBack?.[0]?.path || null;
+
+    if (newPhotoUrl) registration.photo = newPhotoUrl;
+    if (newAadharFrontUrl) registration.aadharFront = newAadharFrontUrl;
+    if (newAadharBackUrl) registration.aadharBack = newAadharBackUrl;
+
     await registration.save();
+
+    const cleanupTargets = [];
+
+    if (newPhotoUrl) {
+      cleanupTargets.push({ oldUrl: oldPhoto || oldPhotoUrl, newUrl: newPhotoUrl });
+    }
+    if (newAadharFrontUrl) {
+      cleanupTargets.push({ oldUrl: oldAadharFront || oldAadharFrontUrl, newUrl: newAadharFrontUrl });
+    }
+    if (newAadharBackUrl) {
+      cleanupTargets.push({ oldUrl: oldAadharBack || oldAadharBackUrl, newUrl: newAadharBackUrl });
+    }
+
+    for (const target of cleanupTargets) {
+      const oldPublicId = extractCloudinaryPublicId(target.oldUrl);
+      const newPublicId = extractCloudinaryPublicId(target.newUrl);
+
+      if (oldPublicId && oldPublicId !== newPublicId) {
+        try {
+          await cloudinary.uploader.destroy(oldPublicId, { resource_type: "image" });
+        } catch (cleanupError) {
+          console.warn("Cloudinary cleanup failed for old asset:", oldPublicId, cleanupError?.message || cleanupError);
+        }
+      }
+    }
 
     return res.json({
       message: "Registration updated successfully",
@@ -579,7 +780,8 @@ router.put("/registrations/:id", adminAuth, async (req, res) => {
     console.error("❌ Error updating registration:", error);
     res.status(500).json({ message: "Error updating registration" });
   }
-});
+},
+);
 
 // PUT /api/admin/registrations/:id/approve - Approve a registration
 router.put("/registrations/:id/approve", adminAuth, async (req, res) => {
