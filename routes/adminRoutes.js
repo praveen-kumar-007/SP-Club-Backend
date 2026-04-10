@@ -596,6 +596,8 @@ router.put(
       terms,
       kitSize,
       jerseyNumber,
+      idCardNumber,
+      idCardRole,
       oldPhoto,
       oldAadharFront,
       oldAadharBack,
@@ -632,6 +634,33 @@ router.put(
     }
 
     if (role !== undefined) registration.role = String(role).trim();
+
+    if (idCardRole !== undefined) {
+      const normalizedIdCardRole = String(idCardRole || "").trim();
+      registration.idCardRole = normalizedIdCardRole || null;
+    }
+
+    if (idCardNumber !== undefined) {
+      const normalizedIdCardNumber = String(idCardNumber || "").trim();
+
+      if (normalizedIdCardNumber) {
+        const duplicateIdCard = await Registration.findOne({
+          _id: { $ne: registration._id },
+          idCardNumber: normalizedIdCardNumber,
+        });
+
+        if (duplicateIdCard) {
+          return res.status(409).json({
+            message: "ID card number is already assigned to another registration.",
+          });
+        }
+
+        registration.idCardNumber = normalizedIdCardNumber;
+        if (!registration.idCardGeneratedAt) {
+          registration.idCardGeneratedAt = new Date();
+        }
+      }
+    }
 
     if (dob !== undefined) {
       const parsedDob = new Date(dob);
