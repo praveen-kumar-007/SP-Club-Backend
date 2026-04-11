@@ -3,6 +3,8 @@ require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
+const http = require("http");
+const https = require("https");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -73,6 +75,58 @@ app.use("/api/news", newsRoutes);
 app.use("/api/player", playerRoutes);
 
 /* ----------------------------------------------------
+   KEEP-ALIVE PING (EVERY 10 MIN)
+---------------------------------------------------- */
+
+const KEEP_ALIVE_INTERVAL_MS = 10 * 60 * 1000;
+
+function startKeepAlivePing() {
+  const pingUrl =
+    process.env.RENDER_EXTERNAL_URL ||
+    process.env.BACKEND_URL ||
+    process.env.API_URL;
+
+  if (!pingUrl) {
+    console.warn(
+      "Keep-alive ping disabled: set RENDER_EXTERNAL_URL or BACKEND_URL in env.",
+    );
+    return;
+  }
+
+  const pingOnce = () => {
+    try {
+      const url = new URL(pingUrl);
+      const client = url.protocol === "https:" ? https : http;
+
+      const req = client.get(
+        pingUrl,
+        { timeout: 10000 },
+        (res) => {
+          res.resume();
+          console.log(
+            `Keep-alive ping: ${pingUrl} -> ${res.statusCode || "unknown"}`,
+          );
+        },
+      );
+
+      req.on("timeout", () => {
+        req.destroy();
+        console.warn("Keep-alive ping timeout");
+      });
+
+      req.on("error", (err) => {
+        console.warn("Keep-alive ping error:", err.message);
+      });
+    } catch (err) {
+      console.warn("Invalid keep-alive URL:", err.message);
+    }
+  };
+
+  pingOnce();
+  setInterval(pingOnce, KEEP_ALIVE_INTERVAL_MS);
+}
+
+/* ----------------------------------------------------
    🔴 GLOBAL ERROR HANDLER (CRITICAL FIX)
    Catches Multer / Cloudinary / Validation errors
 ---------------------------------------------------- */
@@ -121,6 +175,7 @@ mongoose
     app.listen(PORT, "0.0.0.0", () => {
       console.log(`Server running on port ${PORT}`);
       console.log(`Backend accessible at http://localhost:${PORT}`);
+      startKeepAlivePing();
     });
   })
   .catch((err) => {
