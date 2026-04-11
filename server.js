@@ -98,16 +98,12 @@ function startKeepAlivePing() {
       const url = new URL(pingUrl);
       const client = url.protocol === "https:" ? https : http;
 
-      const req = client.get(
-        pingUrl,
-        { timeout: 10000 },
-        (res) => {
-          res.resume();
-          console.log(
-            `Keep-alive ping: ${pingUrl} -> ${res.statusCode || "unknown"}`,
-          );
-        },
-      );
+      const req = client.get(pingUrl, { timeout: 10000 }, (res) => {
+        res.resume();
+        console.log(
+          `Keep-alive ping: ${pingUrl} -> ${res.statusCode || "unknown"}`,
+        );
+      });
 
       req.on("timeout", () => {
         req.destroy();
