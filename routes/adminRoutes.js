@@ -1579,6 +1579,71 @@ const getMonthBounds = (monthParam) => {
   };
 };
 
+const getMonthKey = (inputMonth) => {
+  if (typeof inputMonth !== "string") return null;
+  const value = inputMonth.trim();
+  if (!/^\d{4}-\d{2}$/.test(value)) return null;
+
+  const [yearStr, monthStr] = value.split("-");
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+
+  if (!year || !month || month < 1 || month > 12) return null;
+  return `${year}-${String(month).padStart(2, "0")}`;
+};
+
+const getRecentMonthKeys = (count = 12, anchorMonth) => {
+  const keys = [];
+  const safeCount = Math.max(1, Math.min(Number(count) || 12, 24));
+  const base = getMonthKey(anchorMonth);
+
+  let startDate;
+  if (base) {
+    const [yearStr, monthStr] = base.split("-");
+    startDate = new Date(Number(yearStr), Number(monthStr) - 1, 1);
+  } else {
+    const now = new Date();
+    startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+  }
+
+  for (let i = 0; i < safeCount; i += 1) {
+    const d = new Date(startDate.getFullYear(), startDate.getMonth() - i, 1);
+    keys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+  }
+
+  return keys;
+};
+
+const normalizeFeeHistory = (feePayments, months = 12, anchorMonth) => {
+  const monthKeys = getRecentMonthKeys(months, anchorMonth);
+  const source = Array.isArray(feePayments) ? feePayments : [];
+  const feeMap = new Map();
+
+  for (const item of source) {
+    const monthKey = getMonthKey(item?.month);
+    if (!monthKey) continue;
+
+    feeMap.set(monthKey, {
+      month: monthKey,
+      isPaid: Boolean(item?.isPaid),
+      updatedAt: item?.updatedAt || null,
+      updatedBy: item?.updatedBy || null,
+    });
+  }
+
+  return monthKeys.map((month) => {
+    const found = feeMap.get(month);
+    if (found) return found;
+
+    return {
+      month,
+      isPaid: false,
+      updatedAt: null,
+      updatedBy: null,
+    };
+  });
+};
+
 const getPracticeDatesForMonth = async (bounds) => {
   const players = await Registration.find({
     status: "approved",
@@ -1642,7 +1707,7 @@ router.get("/players", adminAuth, async (req, res) => {
 
     const players = await Registration.find(query)
       .select(
-        "_id name email phone role status idCardNumber attendance gender kitSize jerseyNumber clubDetails aadharNumber address",
+        "_id name email phone role status idCardNumber attendance gender kitSize jerseyNumber clubDetails aadharNumber address feeAccessEnabled",
       )
       .sort({ name: 1 })
       .lean();
@@ -1658,6 +1723,204 @@ router.get("/players", adminAuth, async (req, res) => {
   } catch (error) {
     console.error("Error fetching players:", error);
     return res.status(500).json({ message: "Failed to fetch players" });
+  }
+});
+
+// GET /api/admin/fees/players - Approved players with payment-list selection status
+router.get("/fees/players", adminAuth, async (req, res) => {
+  try {
+    const search = String(req.query.search || "").trim();
+    const query = { status: "approved" };
+
+    if (search) {
+      const regex = { $regex: search, $options: "i" };
+      query.$or = [
+        { name: regex },
+        { email: regex },
+        { phone: regex },
+        { idCardNumber: regex },
+      ];
+    }
+
+    const players = await Registration.find(query)
+      .select("_id name email phone role idCardNumber feeAccessEnabled feePayments")
+      .sort({ name: 1 })
+      .lean();
+
+    const currentMonth = getMonthBounds()?.month;
+
+    const mapped = players.map((player) => {
+      const currentMonthEntry = Array.isArray(player.feePayments)
+        ? player.feePayments.find((item) => getMonthKey(item?.month) === currentMonth)
+        : null;
+
+      return {
+        _id: player._id,
+        name: player.name,
+        email: player.email,
+        phone: player.phone || "",
+        role: player.role,
+        idCardNumber: player.idCardNumber || "",
+        feeAccessEnabled: Boolean(player.feeAccessEnabled),
+        currentMonthPaid: Boolean(currentMonthEntry?.isPaid),
+      };
+    });
+
+    return res.json({ players: mapped, currentMonth });
+  } catch (error) {
+    console.error("Error fetching fee players:", error);
+    return res.status(500).json({ message: "Failed to fetch fee players" });
+  }
+});
+
+// PATCH /api/admin/fees/players/:playerId/access - Add or remove player from fee list
+router.patch("/fees/players/:playerId/access", adminAuth, async (req, res) => {
+  try {
+    const { enabled } = req.body || {};
+
+    if (typeof enabled !== "boolean") {
+      return res.status(400).json({ message: "enabled must be boolean" });
+    }
+
+    const player = await Registration.findById(req.params.playerId).select(
+      "_id name status feeAccessEnabled",
+    );
+
+    if (!player) {
+      return res.status(404).json({ message: "Player not found" });
+    }
+
+    if (player.status !== "approved") {
+      return res
+        .status(400)
+        .json({ message: "Only approved players can be added to fee list" });
+    }
+
+    player.feeAccessEnabled = enabled;
+    await player.save();
+
+    return res.json({
+      message: enabled
+        ? "Player added to fee payment list"
+        : "Player removed from fee payment list",
+      player: {
+        id: player._id,
+        name: player.name,
+        feeAccessEnabled: player.feeAccessEnabled,
+      },
+    });
+  } catch (error) {
+    console.error("Error updating fee access:", error);
+    return res.status(500).json({ message: "Failed to update fee access" });
+  }
+});
+
+// GET /api/admin/fees/:playerId - Fee payment history for a player
+router.get("/fees/:playerId", adminAuth, async (req, res) => {
+  try {
+    const historyMonths = Number(req.query.months || 12);
+    const selectedMonth = getMonthKey(String(req.query.month || "")) || getMonthBounds()?.month;
+
+    const player = await Registration.findById(req.params.playerId)
+      .select("_id name email role idCardNumber status feeAccessEnabled feePayments")
+      .populate("feePayments.updatedBy", "username email")
+      .lean();
+
+    if (!player) {
+      return res.status(404).json({ message: "Player not found" });
+    }
+
+    const history = normalizeFeeHistory(player.feePayments, historyMonths, selectedMonth);
+    const selectedMonthItem = history.find((item) => item.month === selectedMonth) || null;
+
+    return res.json({
+      month: selectedMonth,
+      player: {
+        id: player._id,
+        name: player.name,
+        email: player.email,
+        role: player.role,
+        status: player.status,
+        idCardNumber: player.idCardNumber || "",
+        feeAccessEnabled: Boolean(player.feeAccessEnabled),
+      },
+      selectedMonthStatus: selectedMonthItem,
+      history,
+    });
+  } catch (error) {
+    console.error("Error fetching fee history:", error);
+    return res.status(500).json({ message: "Failed to fetch fee history" });
+  }
+});
+
+// PATCH /api/admin/fees/:playerId/toggle - Toggle paid/pending for a specific month
+router.patch("/fees/:playerId/toggle", adminAuth, async (req, res) => {
+  try {
+    const { month, isPaid } = req.body || {};
+    const monthKey = getMonthKey(String(month || ""));
+
+    if (!monthKey) {
+      return res.status(400).json({ message: "month must be in YYYY-MM format" });
+    }
+
+    if (typeof isPaid !== "boolean") {
+      return res.status(400).json({ message: "isPaid must be boolean" });
+    }
+
+    const player = await Registration.findById(req.params.playerId);
+    if (!player) {
+      return res.status(404).json({ message: "Player not found" });
+    }
+
+    if (player.status !== "approved") {
+      return res
+        .status(400)
+        .json({ message: "Only approved players are eligible for fee updates" });
+    }
+
+    if (!player.feeAccessEnabled) {
+      return res.status(400).json({
+        message: "Player is not in the fee payment list. Enable access first.",
+      });
+    }
+
+    const payments = Array.isArray(player.feePayments) ? player.feePayments : [];
+    const existingIndex = payments.findIndex(
+      (item) => getMonthKey(item?.month) === monthKey,
+    );
+
+    const updatedRecord = {
+      month: monthKey,
+      isPaid,
+      updatedAt: new Date(),
+      updatedBy: req.adminId,
+    };
+
+    if (existingIndex >= 0) {
+      player.feePayments[existingIndex] = {
+        ...player.feePayments[existingIndex].toObject(),
+        ...updatedRecord,
+      };
+    } else {
+      player.feePayments.push(updatedRecord);
+    }
+
+    await player.save();
+
+    return res.json({
+      message: isPaid
+        ? `Payment marked as PAID for ${monthKey}`
+        : `Payment marked as PENDING for ${monthKey}`,
+      payment: updatedRecord,
+      player: {
+        id: player._id,
+        name: player.name,
+        feeAccessEnabled: Boolean(player.feeAccessEnabled),
+      },
+    });
+  } catch (error) {
+    console.error("Error toggling fee payment:", error);
+    return res.status(500).json({ message: "Failed to toggle fee payment" });
   }
 });
 

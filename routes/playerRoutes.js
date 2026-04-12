@@ -135,6 +135,69 @@ const getMonthBounds = (monthParam) => {
   };
 };
 
+const getMonthKey = (inputMonth) => {
+  if (typeof inputMonth !== "string") return null;
+  const value = inputMonth.trim();
+  if (!/^\d{4}-\d{2}$/.test(value)) return null;
+
+  const [yearStr, monthStr] = value.split("-");
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+  if (!year || !month || month < 1 || month > 12) return null;
+
+  return `${year}-${String(month).padStart(2, "0")}`;
+};
+
+const getRecentMonthKeys = (count = 12, anchorMonth) => {
+  const keys = [];
+  const safeCount = Math.max(1, Math.min(Number(count) || 12, 24));
+  const baseMonth = getMonthKey(anchorMonth);
+
+  let startDate;
+  if (baseMonth) {
+    const [yearStr, monthStr] = baseMonth.split("-");
+    startDate = new Date(Number(yearStr), Number(monthStr) - 1, 1);
+  } else {
+    const now = new Date();
+    startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+  }
+
+  for (let i = 0; i < safeCount; i += 1) {
+    const d = new Date(startDate.getFullYear(), startDate.getMonth() - i, 1);
+    keys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+  }
+
+  return keys;
+};
+
+const normalizeFeeHistory = (feePayments, months = 12, anchorMonth) => {
+  const monthKeys = getRecentMonthKeys(months, anchorMonth);
+  const source = Array.isArray(feePayments) ? feePayments : [];
+  const feeMap = new Map();
+
+  for (const item of source) {
+    const month = getMonthKey(item?.month);
+    if (!month) continue;
+
+    feeMap.set(month, {
+      month,
+      isPaid: Boolean(item?.isPaid),
+      updatedAt: item?.updatedAt || null,
+    });
+  }
+
+  return monthKeys.map((month) => {
+    const found = feeMap.get(month);
+    if (found) return found;
+
+    return {
+      month,
+      isPaid: false,
+      updatedAt: null,
+    };
+  });
+};
+
 const getPracticeDatesForMonth = async (bounds) => {
   const players = await Registration.find({
     status: "approved",
@@ -431,7 +494,7 @@ router.get("/me", playerAuth, async (req, res) => {
   try {
     const player = await Registration.findById(req.playerId)
       .select(
-        "_id name email role idCardNumber phone parentsPhone aadharNumber dob bloodGroup gender address clubDetails photo certificates kitSize jerseyNumber status",
+        "_id name email role idCardNumber phone parentsPhone aadharNumber dob bloodGroup gender address clubDetails photo certificates kitSize jerseyNumber status feeAccessEnabled",
       )
       .lean();
 
@@ -457,6 +520,7 @@ router.get("/me", playerAuth, async (req, res) => {
         kitSize: player.kitSize || "",
         jerseyNumber: player.jerseyNumber || null,
         status: player.status || "pending",
+        feeAccessEnabled: Boolean(player.feeAccessEnabled),
         photo: player.photo || "",
         certificates: Array.isArray(player.certificates)
           ? player.certificates
@@ -828,6 +892,46 @@ router.get("/attendance", playerAuth, async (req, res) => {
     });
   } catch (error) {
     return res.status(500).json({ message: "Failed to fetch attendance" });
+  }
+});
+
+router.get("/fees", playerAuth, async (req, res) => {
+  try {
+    const historyMonths = Number(req.query.months || 12);
+    const selectedMonth = getMonthKey(String(req.query.month || "")) || getMonthBounds()?.month;
+
+    const player = await Registration.findById(req.playerId)
+      .select("_id name idCardNumber feeAccessEnabled feePayments")
+      .lean();
+
+    if (!player) {
+      return res.status(404).json({ message: "Player not found" });
+    }
+
+    if (!player.feeAccessEnabled) {
+      return res.status(403).json({
+        message: "Fee details are not enabled for your account yet",
+        feeAccessEnabled: false,
+      });
+    }
+
+    const history = normalizeFeeHistory(player.feePayments, historyMonths, selectedMonth);
+    const selectedMonthStatus = history.find((item) => item.month === selectedMonth) || null;
+
+    return res.json({
+      feeAccessEnabled: true,
+      month: selectedMonth,
+      player: {
+        id: player._id,
+        name: player.name,
+        idCardNumber: player.idCardNumber || "",
+      },
+      selectedMonthStatus,
+      history,
+    });
+  } catch (error) {
+    console.error("Player fee status fetch error:", error);
+    return res.status(500).json({ message: "Failed to fetch fee status" });
   }
 });
 

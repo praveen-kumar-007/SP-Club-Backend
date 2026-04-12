@@ -191,6 +191,33 @@ const registrationSchema = new mongoose.Schema({
       },
     },
   ],
+
+  // Fee access and month-wise payment tracking
+  feeAccessEnabled: {
+    type: Boolean,
+    default: false,
+  },
+  feePayments: [
+    {
+      month: {
+        type: String,
+        required: true,
+      },
+      isPaid: {
+        type: Boolean,
+        default: false,
+      },
+      updatedAt: {
+        type: Date,
+        default: Date.now,
+      },
+      updatedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Admin",
+        default: null,
+      },
+    },
+  ],
 });
 
 // Indexes
@@ -200,6 +227,8 @@ registrationSchema.index({ registeredAt: -1 });
 registrationSchema.index({ idCardNumber: 1, status: 1 });
 registrationSchema.index({ gender: 1, jerseyNumber: 1 }, { unique: true, partialFilterExpression: { jerseyNumber: { $exists: true, $ne: null } } });
 registrationSchema.index({ "attendance.date": 1 });
+registrationSchema.index({ feeAccessEnabled: 1 });
+registrationSchema.index({ "feePayments.month": 1 });
 
 registrationSchema.path("jerseyNumber").validate(async function (value) {
   if (value === null || value === undefined) return true;
