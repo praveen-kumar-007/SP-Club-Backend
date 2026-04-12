@@ -1545,6 +1545,17 @@ router.delete("/registrations/:id/delete-id", adminAuth, async (req, res) => {
 
 const toIsoDate = (date) => date.toISOString().split("T")[0];
 
+const getTodayInIST = () => {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+
+  return formatter.format(new Date());
+};
+
 const getMonthBounds = (monthParam) => {
   const now = new Date();
   const [yearStr, monthStr] = (
@@ -1566,6 +1577,36 @@ const getMonthBounds = (monthParam) => {
     startDate: toIsoDate(start),
     endDate: toIsoDate(end),
   };
+};
+
+const getPracticeDatesForMonth = async (bounds) => {
+  const players = await Registration.find({
+    status: "approved",
+    attendance: {
+      $elemMatch: {
+        date: { $gte: bounds.startDate, $lte: bounds.endDate },
+        status: "present",
+      },
+    },
+  })
+    .select("attendance")
+    .lean();
+
+  const practiceDateSet = new Set();
+
+  for (const player of players) {
+    for (const entry of player.attendance || []) {
+      if (
+        entry?.status === "present" &&
+        entry?.date >= bounds.startDate &&
+        entry?.date <= bounds.endDate
+      ) {
+        practiceDateSet.add(entry.date);
+      }
+    }
+  }
+
+  return Array.from(practiceDateSet).sort();
 };
 
 // GET /api/admin/players - List all approved players with generated IDs
@@ -1726,9 +1767,12 @@ router.get("/attendance/:playerId", adminAuth, async (req, res) => {
         .json({ message: "Invalid month format. Use YYYY-MM." });
     }
 
-    const player = await Registration.findById(req.params.playerId).select(
+    const [player, practiceDates] = await Promise.all([
+      Registration.findById(req.params.playerId).select(
       "_id name email role idCardNumber attendance status",
-    );
+      ),
+      getPracticeDatesForMonth(bounds),
+    ]);
 
     if (!player) {
       return res.status(404).json({ message: "Player not found" });
@@ -1743,6 +1787,8 @@ router.get("/attendance/:playerId", adminAuth, async (req, res) => {
 
     return res.json({
       month: bounds.month,
+      today: getTodayInIST(),
+      practiceDates,
       player: {
         id: player._id,
         name: player.name,

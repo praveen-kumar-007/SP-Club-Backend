@@ -135,6 +135,36 @@ const getMonthBounds = (monthParam) => {
   };
 };
 
+const getPracticeDatesForMonth = async (bounds) => {
+  const players = await Registration.find({
+    status: "approved",
+    attendance: {
+      $elemMatch: {
+        date: { $gte: bounds.startDate, $lte: bounds.endDate },
+        status: "present",
+      },
+    },
+  })
+    .select("attendance")
+    .lean();
+
+  const practiceDateSet = new Set();
+
+  for (const player of players) {
+    for (const entry of player.attendance || []) {
+      if (
+        entry?.status === "present" &&
+        entry?.date >= bounds.startDate &&
+        entry?.date <= bounds.endDate
+      ) {
+        practiceDateSet.add(entry.date);
+      }
+    }
+  }
+
+  return Array.from(practiceDateSet).sort();
+};
+
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -779,6 +809,10 @@ router.get("/attendance", playerAuth, async (req, res) => {
         .json({ message: "Invalid month format. Use YYYY-MM." });
     }
 
+    const [practiceDates] = await Promise.all([
+      getPracticeDatesForMonth(bounds),
+    ]);
+
     const attendance = (req.player.attendance || [])
       .filter(
         (entry) =>
@@ -788,6 +822,8 @@ router.get("/attendance", playerAuth, async (req, res) => {
 
     return res.json({
       month: bounds.month,
+      today: getTodayInIST(),
+      practiceDates,
       attendance,
     });
   } catch (error) {
