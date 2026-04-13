@@ -449,6 +449,7 @@ router.get("/registrations", adminAuth, async (req, res) => {
       limit = 10,
       search = "",
       ageGroup = "all",
+      gender = "all",
     } = req.query;
 
     let query = {};
@@ -497,6 +498,17 @@ router.get("/registrations", adminAuth, async (req, res) => {
         default:
           // ignore unknown ageGroup
           break;
+      }
+    }
+
+    if (gender && gender !== "all" && gender !== "both") {
+      const g = gender.toLowerCase();
+      if (g === "boy's" || g === "boys") {
+        query.gender = "male";
+      } else if (g === "girl's" || g === "girls") {
+        query.gender = "female";
+      } else {
+        query.gender = g;
       }
     }
 
@@ -1679,10 +1691,59 @@ router.get("/players", adminAuth, async (req, res) => {
   try {
     const search = (req.query.search || "").trim();
     const showAllPlayers = String(req.query.all).toLowerCase() === "true";
+    const ageGroup = req.query.ageGroup || "all";
+    const gender = req.query.gender || "all";
 
     const query = {};
     if (!showAllPlayers) {
       query.status = "approved";
+    }
+
+    if (ageGroup && ageGroup !== "all") {
+      const today = new Date();
+      const setRange = (minAge, maxAgeExclusive) => {
+        const maxDate = new Date(today);
+        maxDate.setFullYear(today.getFullYear() - minAge);
+        const minDate = new Date(today);
+        minDate.setFullYear(today.getFullYear() - maxAgeExclusive);
+        return { $gte: minDate, $lt: maxDate };
+      };
+
+      switch (ageGroup) {
+        case "Under 10":
+          query.dob = setRange(0, 10);
+          break;
+        case "10-14":
+          query.dob = setRange(10, 14);
+          break;
+        case "14-16":
+          query.dob = setRange(14, 16);
+          break;
+        case "16-19":
+          query.dob = setRange(16, 19);
+          break;
+        case "19-25":
+          query.dob = setRange(19, 25);
+          break;
+        case "Over 25":
+          const cutoff = new Date(today);
+          cutoff.setFullYear(today.getFullYear() - 25);
+          query.dob = { $lt: cutoff };
+          break;
+        default:
+          break;
+      }
+    }
+
+    if (gender && gender !== "all" && gender !== "both") {
+      const g = gender.toLowerCase();
+      if (g === "boy's" || g === "boys") {
+        query.gender = "male";
+      } else if (g === "girl's" || g === "girls") {
+        query.gender = "female";
+      } else {
+        query.gender = g;
+      }
     }
 
     if (search) {
