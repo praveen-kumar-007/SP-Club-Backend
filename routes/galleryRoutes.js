@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const Gallery = require("../models/gallery");
 const { uploadGallery, cloudinary } = require("../config/cloudinary");
-const { authenticateAdmin } = require("../middleware/auth");
+const { adminAuth } = require("../middleware/adminAuth");
 
 // @route   GET /api/gallery
 // @desc    Get all gallery images
@@ -20,7 +20,7 @@ router.get("/", async (req, res) => {
 // @route   POST /api/gallery
 // @desc    Upload a new gallery image
 // @access  Private (Admin only)
-router.post("/", authenticateAdmin, uploadGallery.single("image"), async (req, res) => {
+router.post("/", adminAuth, uploadGallery.single("image"), async (req, res) => {
   try {
     const { title, description, category } = req.body;
 
@@ -47,7 +47,7 @@ router.post("/", authenticateAdmin, uploadGallery.single("image"), async (req, r
 // @route   DELETE /api/gallery/:id
 // @desc    Delete a gallery image
 // @access  Private (Admin only)
-router.delete("/:id", authenticateAdmin, async (req, res) => {
+router.delete("/:id", adminAuth, async (req, res) => {
   try {
     const image = await Gallery.findById(req.params.id);
 
