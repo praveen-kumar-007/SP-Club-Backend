@@ -46,4 +46,24 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
 });
 
-module.exports = { cloudinary, upload };
+// Configure Cloudinary storage for gallery
+const galleryStorage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'sp-club/gallery',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
+    transformation: [{ width: 1200, height: 1200, crop: 'limit', quality: 'auto' }],
+    public_id: (req, file) => {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      return 'gallery-' + uniqueSuffix;
+    }
+  }
+});
+
+const uploadGallery = multer({
+  storage: galleryStorage,
+  fileFilter: fileFilter,
+  limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit for gallery images
+});
+
+module.exports = { cloudinary, upload, uploadGallery };

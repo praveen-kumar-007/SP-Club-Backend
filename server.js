@@ -62,6 +62,7 @@ const adminRoutes = require("./routes/adminRoutes");
 const newsletterRoutes = require("./routes/newsletterRoutes");
 const newsRoutes = require("./routes/newsRoutes");
 const playerRoutes = require("./routes/playerRoutes");
+const galleryRoutes = require("./routes/galleryRoutes");
 
 app.get("/", (req, res) => {
   res.send("SP Club Backend is running!");
@@ -73,6 +74,7 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/newsletter", newsletterRoutes);
 app.use("/api/news", newsRoutes);
 app.use("/api/player", playerRoutes);
+app.use("/api/gallery", galleryRoutes);
 
 /* ----------------------------------------------------
    KEEP-ALIVE PING (EVERY 10 MIN)
