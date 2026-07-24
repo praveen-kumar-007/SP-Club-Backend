@@ -77,16 +77,17 @@ app.use("/api/player", playerRoutes);
 app.use("/api/gallery", galleryRoutes);
 
 /* ----------------------------------------------------
-   KEEP-ALIVE PING (EVERY 10 MIN)
+   KEEP-ALIVE PING (EVERY 14 MIN)
 ---------------------------------------------------- */
 
-const KEEP_ALIVE_INTERVAL_MS = 10 * 60 * 1000;
+const KEEP_ALIVE_INTERVAL_MS = 14 * 60 * 1000;
 
 function startKeepAlivePing() {
   const pingUrl =
     process.env.RENDER_EXTERNAL_URL ||
     process.env.BACKEND_URL ||
-    process.env.API_URL;
+    process.env.API_URL ||
+    "https://api.spkabaddi.me";
 
   if (!pingUrl) {
     console.warn(
