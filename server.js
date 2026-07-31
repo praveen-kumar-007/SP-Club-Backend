@@ -80,7 +80,7 @@ app.use("/api/gallery", galleryRoutes);
    KEEP-ALIVE PING (EVERY 14 MIN)
 ---------------------------------------------------- */
 
-const KEEP_ALIVE_INTERVAL_MS = 14 * 60 * 1000;
+const cron = require("node-cron");
 
 function startKeepAlivePing() {
   const pingUrl =
@@ -121,8 +121,14 @@ function startKeepAlivePing() {
     }
   };
 
+  // Ping once immediately when the server starts
   pingOnce();
-  setInterval(pingOnce, KEEP_ALIVE_INTERVAL_MS);
+  
+  // Schedule a cron job to run every 14 minutes
+  cron.schedule("*/14 * * * *", () => {
+    console.log("Cron job running: Keep-alive ping...");
+    pingOnce();
+  });
 }
 
 /* ----------------------------------------------------
