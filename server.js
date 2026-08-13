@@ -124,12 +124,56 @@ function startKeepAlivePing() {
   // Ping once immediately when the server starts
   pingOnce();
   
-  // Schedule a cron job to run every 14 minutes
-  cron.schedule("*/14 * * * *", () => {
+  // Schedule a cron job to run every 10 minutes
+  cron.schedule("*/10 * * * *", () => {
     console.log("Cron job running: Keep-alive ping...");
     pingOnce();
   });
 }
+
+/* ----------------------------------------------------
+   BIRTHDAY CRON JOB (EVERY DAY AT 8:00 AM)
+---------------------------------------------------- */
+
+const Registration = require("./models/registration");
+const { sendBirthdayFollowupMail } = require("./services/brevoMailer");
+
+function startBirthdayCron() {
+  cron.schedule("0 8 * * *", async () => {
+    try {
+      console.log("Cron job running: Checking for player birthdays...");
+      const today = new Date();
+      const month = today.getMonth() + 1;
+      const day = today.getDate();
+
+      const birthdayPlayers = await Registration.aggregate([
+        {
+          $match: {
+            $expr: {
+              $and: [
+                { $eq: [{ $month: "$dob" }, month] },
+                { $eq: [{ $dayOfMonth: "$dob" }, day] }
+              ]
+            }
+          }
+        }
+      ]);
+
+      if (birthdayPlayers && birthdayPlayers.length > 0) {
+        console.log(`Found ${birthdayPlayers.length} birthdays today. Sending email...`);
+        await sendBirthdayFollowupMail(birthdayPlayers);
+      } else {
+        console.log("No birthdays today.");
+      }
+    } catch (err) {
+      console.error("Error in birthday cron job:", err);
+    }
+  }, {
+    timezone: "Asia/Kolkata"
+  });
+}
+
+startBirthdayCron();
 
 /* ----------------------------------------------------
    🔴 GLOBAL ERROR HANDLER (CRITICAL FIX)

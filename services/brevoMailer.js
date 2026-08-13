@@ -390,6 +390,47 @@ const sendCustomAdminMail = async ({
   });
 };
 
+const sendBirthdayFollowupMail = async (players) => {
+  const enabled = await isMailEnabled();
+  if (!enabled) return { skipped: true, reason: "disabled" };
+
+  if (!players || players.length === 0) return { skipped: true, reason: "no-players" };
+
+  let playersListHtml = players.map(p => `
+    <li style="margin-bottom: 10px;">
+      <strong>Name:</strong> ${p.name || 'N/A'}<br/>
+      <strong>DOB:</strong> ${p.dob ? new Date(p.dob).toDateString() : 'N/A'}<br/>
+      <strong>Email:</strong> ${p.email || 'N/A'}<br/>
+      <strong>Phone:</strong> ${p.phone || 'N/A'}<br/>
+      <strong>Role:</strong> ${p.role || 'N/A'}<br/>
+      <strong>Club:</strong> ${p.clubDetails || 'N/A'}
+    </li>
+  `).join('');
+
+  const html = buildEmailTemplate({
+    title: "Player Birthdays Today 🎂",
+    subtitle: "Follow-up for players having their birthday today",
+    contentHtml: `
+      <p>Hello Admin,</p>
+      <p>The following players have their birthday today:</p>
+      <ul style="padding-left: 20px;">
+        ${playersListHtml}
+      </ul>
+      <p>Please send them your best wishes!</p>
+    `,
+  });
+
+  return sendBrevoEmail({
+    to: [
+      { email: "praveen.pr105@gmail.com", name: "Praveen" },
+      { email: "pappukrpappu.1234@gmail.com", name: "Pappu" }
+    ],
+    subject: "Player Birthdays Today 🎂 - SP Kabaddi Group Dhanbad",
+    htmlContent: html,
+    textContent: `Birthdays today: ${players.map(p => p.name).join(', ')}`,
+  });
+};
+
 module.exports = {
   getMailSettings,
   setMailEnabled,
@@ -399,4 +440,5 @@ module.exports = {
   sendCustomAdminMail,
   sendPasswordOtpMail,
   sendAdminPasswordOtpMail,
+  sendBirthdayFollowupMail,
 };
