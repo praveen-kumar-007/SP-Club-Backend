@@ -83,11 +83,7 @@ app.use("/api/gallery", galleryRoutes);
 const cron = require("node-cron");
 
 function startKeepAlivePing() {
-  const pingUrl =
-    process.env.RENDER_EXTERNAL_URL ||
-    process.env.BACKEND_URL ||
-    process.env.API_URL ||
-    "https://api.spkabaddi.me";
+  const pingUrl = "https://api.spkabaddi.me";
 
   if (!pingUrl) {
     console.warn(
