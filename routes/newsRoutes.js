@@ -76,7 +76,7 @@ router.get("/share/:id", async (req, res) => {
     const imageUrl =
       Array.isArray(news.images) && news.images.length > 0
         ? news.images[0]
-        : `${FRONTEND_BASE_URL}/Logo.png`;
+        : `${FRONTEND_BASE_URL}/og-image.jpg?v=2`;
     const title = news.title || "SP Sports Academy News";
     const description = buildShareDescription(
       news.content || "Latest update from SP Sports Academy.",
