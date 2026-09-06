@@ -2,14 +2,14 @@ const MailSettings = require("../models/mailSettings");
 
 const BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
 const REPLY_TO_EMAIL = "spkabaddigroupdhanbad@gmail.com";
-const REPLY_TO_NAME = "SP Kabaddi Group Dhanbad";
+const REPLY_TO_NAME = "SP Sports Academy";
 
 const getApiKey = () =>
   process.env.BRAVO_API_KEY || process.env.BREVO_API_KEY || "";
 
 const getSender = () => ({
   email: process.env.MAIL_SENDER_EMAIL || REPLY_TO_EMAIL,
-  name: process.env.MAIL_SENDER_NAME || "SP Kabaddi Group Dhanbad",
+  name: process.env.MAIL_SENDER_NAME || "SP Sports Academy",
 });
 
 const getBrandLogo = () => {
@@ -127,10 +127,10 @@ const buildEmailTemplate = ({
                   <table width="100%" cellpadding="0" cellspacing="0">
                     <tr>
                       <td style="vertical-align:middle;">
-                        <img src="${logo}" alt="SP Kabaddi Group Dhanbad" style="height:54px;width:auto;border-radius:8px;background:#ffffff;padding:6px;" />
+                        <img src="${logo}" alt="SP Sports Academy" style="height:54px;width:auto;border-radius:8px;background:#ffffff;padding:6px;" />
                       </td>
                       <td style="vertical-align:middle;text-align:right;font-size:12px;opacity:0.95;">
-                        SP Kabaddi Group Dhanbad
+                        SP Sports Academy
                       </td>
                     </tr>
                   </table>
@@ -147,8 +147,8 @@ const buildEmailTemplate = ({
               <tr>
                 <td style="padding:20px 24px;border-top:1px solid #dbe5f3;background:#f8fafc;color:#475569;font-size:12px;">
                   <div style="text-align:center;">
-                    <img src="${logo}" alt="SP Kabaddi Group Dhanbad" style="height:58px;width:auto;border-radius:8px;background:#ffffff;padding:6px;border:1px solid #e2e8f0;" />
-                    <p style="margin:12px 0 4px 0;font-size:13px;font-weight:700;color:#0f172a;">SP Kabaddi Group Dhanbad</p>
+                    <img src="${logo}" alt="SP Sports Academy" style="height:58px;width:auto;border-radius:8px;background:#ffffff;padding:6px;border:1px solid #e2e8f0;" />
+                    <p style="margin:12px 0 4px 0;font-size:13px;font-weight:700;color:#0f172a;">SP Sports Academy</p>
                     <p style="margin:0 0 8px 0;font-size:12px;color:#475569;line-height:1.6;">
                       Email: <a href="mailto:${clubEmail}" style="color:#0d47a1;text-decoration:none;">${clubEmail}</a><br/>
                       Phone: <a href="tel:${clubPhonePrimary}" style="color:#0d47a1;text-decoration:none;">${clubPhonePrimary}</a> | <a href="tel:${clubPhoneSecondary}" style="color:#0d47a1;text-decoration:none;">${clubPhoneSecondary}</a>
@@ -180,7 +180,7 @@ const buildEmailTemplate = ({
                     </table>
 
                     <div style="margin-top:14px;padding:10px 14px;border-radius:10px;background:linear-gradient(120deg,#c1121f 0%,#0d47a1 58%,#f59e0b 100%);color:#ffffff;font-size:11px;line-height:1.5;">
-                      Official communication from SP Kabaddi Group Dhanbad. For support, reply to this email or call the numbers above.
+                      Official communication from SP Sports Academy. For support, reply to this email or call the numbers above.
                     </div>
                   </div>
                 </td>
@@ -243,19 +243,19 @@ const sendApplicationProcessingMail = async (registration) => {
     subtitle: "Your application is currently under processing",
     contentHtml: `
       <p>Dear ${registration.name || "Applicant"},</p>
-      <p>We have received your registration application at SP Kabaddi Group Dhanbad.</p>
+      <p>We have received your registration application at SP Sports Academy.</p>
       <p>Your application is now in <strong>processing</strong> stage. Our team will review your details and update you soon.</p>
       <p>For queries, simply reply to this email.</p>
-      <p style="margin-top:16px;">Regards,<br/>SP Kabaddi Group Dhanbad Team</p>
+      <p style="margin-top:16px;">Regards,<br/>SP Sports Academy Team</p>
     `,
   });
 
   return sendBrevoEmail({
     to: [{ email: registration.email, name: registration.name || "Applicant" }],
-    subject: "Application Processing - SP Kabaddi Group Dhanbad",
+    subject: "Application Processing - SP Sports Academy",
     htmlContent: html,
     textContent:
-      "Your application is under processing at SP Kabaddi Group Dhanbad.",
+      "Your application is under processing at SP Sports Academy.",
   });
 };
 
@@ -279,7 +279,7 @@ const sendApprovalMail = async (registration, options = {}) => {
     subtitle: "Your registration and player approval are confirmed",
     contentHtml: `
       <p>Dear ${registration.name || "Player"},</p>
-      <p><strong>Congratulations 🎉</strong> Your application has been <strong>approved</strong> by SP Kabaddi Group Dhanbad.</p>
+      <p><strong>Congratulations 🎉</strong> Your application has been <strong>approved</strong> by SP Sports Academy.</p>
       <p>You can now proceed with player login and dashboard access using your credentials:</p>
       <p>
         <strong>Login Email:</strong> ${registration.email}<br/>
@@ -288,7 +288,7 @@ const sendApprovalMail = async (registration, options = {}) => {
       <p>For your account security, please login and <strong>change your password immediately</strong>.</p>
       <p><strong>Important update:</strong> Use the <strong>Player Forgot Password</strong> button below if login password is not working. You can also use <strong>Visit Website</strong> to open the club website directly.</p>
       <p>If you need assistance, reply directly to this email.</p>
-      <p style="margin-top:16px;">Regards,<br/>SP Kabaddi Group Dhanbad Team</p>
+      <p style="margin-top:16px;">Regards,<br/>SP Sports Academy Team</p>
     `,
     actionButtons: [
       {
@@ -303,9 +303,9 @@ const sendApprovalMail = async (registration, options = {}) => {
   return sendBrevoEmail({
     to: [{ email: registration.email, name: registration.name || "Player" }],
     subject:
-      "Congratulations 🎉 Application Approved - SP Kabaddi Group Dhanbad",
+      "Congratulations 🎉 Application Approved - SP Sports Academy",
     htmlContent: html,
-    textContent: `Your application has been approved by SP Kabaddi Group Dhanbad. Login email: ${registration.email}. Default password: ${initialPassword || "your phone number"}. Please change your password after login. Forgot password link: ${forgotPasswordUrl}. Website: ${websiteUrl}`,
+    textContent: `Your application has been approved by SP Sports Academy. Login email: ${registration.email}. Default password: ${initialPassword || "your phone number"}. Please change your password after login. Forgot password link: ${forgotPasswordUrl}. Website: ${websiteUrl}`,
   });
 };
 
@@ -324,13 +324,13 @@ const sendPasswordOtpMail = async ({ email, name, otp }) => {
       <p style="font-size:22px;font-weight:700;letter-spacing:3px;margin:14px 0;">${otp}</p>
       <p>This OTP is valid for <strong>10 minutes</strong>. Please do not share it with anyone.</p>
       <p>If you did not request this, you can ignore this email.</p>
-      <p style="margin-top:16px;">Regards,<br/>SP Kabaddi Group Dhanbad Team</p>
+      <p style="margin-top:16px;">Regards,<br/>SP Sports Academy Team</p>
     `,
   });
 
   return sendBrevoEmail({
     to: [{ email, name: name || "Player" }],
-    subject: "Password Reset OTP - SP Kabaddi Group Dhanbad",
+    subject: "Password Reset OTP - SP Sports Academy",
     htmlContent: html,
     textContent: `Your password reset OTP is ${otp}. It is valid for 10 minutes.`,
   });
@@ -351,13 +351,13 @@ const sendAdminPasswordOtpMail = async ({ email, name, otp }) => {
       <p style="font-size:22px;font-weight:700;letter-spacing:3px;margin:14px 0;">${otp}</p>
       <p>This OTP is valid for <strong>10 minutes</strong>. Do not share it with anyone.</p>
       <p>If this request was not made by you, ignore this email and inform support.</p>
-      <p style="margin-top:16px;">Regards,<br/>SP Kabaddi Group Dhanbad Team</p>
+      <p style="margin-top:16px;">Regards,<br/>SP Sports Academy Team</p>
     `,
   });
 
   return sendBrevoEmail({
     to: [{ email, name: name || "Admin" }],
-    subject: "Admin Password Reset OTP - SP Kabaddi Group Dhanbad",
+    subject: "Admin Password Reset OTP - SP Sports Academy",
     htmlContent: html,
     textContent: `Your admin password reset OTP is ${otp}. It is valid for 10 minutes.`,
   });
@@ -378,7 +378,7 @@ const sendCustomAdminMail = async ({
 
   const html = buildEmailTemplate({
     title: subject,
-    subtitle: "Message from SP Kabaddi Group Dhanbad Admin",
+    subtitle: "Message from SP Sports Academy Admin",
     contentHtml: messageHtml,
   });
 
@@ -425,7 +425,7 @@ const sendBirthdayFollowupMail = async (players) => {
       { email: "praveen.pr105@gmail.com", name: "Praveen" },
       { email: "pappukrpappu.1234@gmail.com", name: "Pappu" }
     ],
-    subject: "Player Birthdays Today 🎂 - SP Kabaddi Group Dhanbad",
+    subject: "Player Birthdays Today 🎂 - SP Sports Academy",
     htmlContent: html,
     textContent: `Birthdays today: ${players.map(p => p.name).join(', ')}`,
   });

@@ -10,7 +10,7 @@ Set these variables in your backend deployment (Render/local .env):
 ```dotenv
 BRAVO_API_KEY=your_bravo_api_key
 MAIL_SENDER_EMAIL=spkabaddigroupdhanbad@gmail.com
-MAIL_SENDER_NAME=SP Kabaddi Group Dhanbad
+MAIL_SENDER_NAME=SP Sports Academy
 FRONTEND_URL=https://spkabaddi.me
 CLUB_LOGO_URL=https://spkabaddi.me/Logo.png
 ```

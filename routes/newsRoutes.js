@@ -77,9 +77,9 @@ router.get("/share/:id", async (req, res) => {
       Array.isArray(news.images) && news.images.length > 0
         ? news.images[0]
         : `${FRONTEND_BASE_URL}/Logo.png`;
-    const title = news.title || "SP Kabaddi News";
+    const title = news.title || "SP Sports Academy News";
     const description = buildShareDescription(
-      news.content || "Latest update from SP Kabaddi Group Dhanbad.",
+      news.content || "Latest update from SP Sports Academy.",
     );
 
     const html = `<!doctype html>
@@ -91,7 +91,7 @@ router.get("/share/:id", async (req, res) => {
   <meta name="description" content="${escapeHtml(description)}" />
   <link rel="canonical" href="${escapeHtml(articleUrl)}" />
 
-  <meta property="og:site_name" content="SP Kabaddi Group Dhanbad" />
+  <meta property="og:site_name" content="SP Sports Academy" />
   <meta property="og:type" content="article" />
   <meta property="og:title" content="${escapeHtml(title)}" />
   <meta property="og:description" content="${escapeHtml(description)}" />
