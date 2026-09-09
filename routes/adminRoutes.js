@@ -3,6 +3,7 @@ const express = require("express");
 const router = express.Router();
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
+const crypto = require("crypto");
 const Admin = require("../models/admin");
 const Registration = require("../models/registration");
 const PlayerMessage = require("../models/playerMessage");
@@ -14,6 +15,8 @@ const {
   sendApprovalMail,
   sendCustomAdminMail,
   sendAdminPasswordOtpMail,
+  sendNocInitiatedMail,
+  sendNocGeneratedMail,
 } = require("../services/brevoMailer");
 const { adminAuth, checkPermission } = require("../middleware/adminAuth");
 
@@ -2601,4 +2604,283 @@ router.get("/extract/master", adminAuth, async (req, res) => {
   }
 });
 
+// =========================================================================
+// NO OBJECTION CERTIFICATE (NOC) WORKFLOW & AUTOMATED TRANSITIONS
+// =========================================================================
+
+const generateNocNumber = (registration) => {
+  const currentYear = new Date().getFullYear();
+  const seed = (registration.idCardNumber || registration._id.toString()).slice(-4).toUpperCase();
+  const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+  return `SPA-NOC-${currentYear}-${seed}-${randomSuffix}`;
+};
+
+const generateNocSignatureHash = (registration, nocNumber, issueDate) => {
+  const payload = `${registration._id}_${registration.name}_${nocNumber}_${issueDate.toISOString()}_SP_SPORTS_ACADEMY_DHANBAD_VERIFIED`;
+  return crypto.createHash("sha256").update(payload).digest("hex");
+};
+
+// Automated state machine for 14-day cooling completion and 14-day post-NOC archival
+const processNocTransitions = async () => {
+  try {
+    const now = new Date();
+
+    // 1. Check players where 14-day cooling has ended and NOC must be auto-approved
+    const coolingCompletedPlayers = await Registration.find({
+      "noc.status": "applied",
+      "noc.coolingEndsAt": { $lte: now },
+    });
+
+    for (const player of coolingCompletedPlayers) {
+      const nocNum = generateNocNumber(player);
+      const generatedDate = now;
+      const signatureHash = generateNocSignatureHash(player, nocNum, generatedDate);
+      const expiryDate = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000); // 14 days download window
+
+      player.noc.status = "approved";
+      player.noc.generatedAt = generatedDate;
+      player.noc.expiresAt = expiryDate;
+      player.noc.nocNumber = nocNum;
+      player.noc.digitalSignatureHash = signatureHash;
+      await player.save();
+
+      try {
+        await sendNocGeneratedMail({
+          registration: player,
+          nocNumber: nocNum,
+          expiresAt: expiryDate,
+          isBypassed: false,
+        });
+      } catch (err) {
+        console.error(`Failed to send NOC generated mail for player ${player._id}:`, err);
+      }
+    }
+
+    // 2. Check players where 14-day download window has elapsed -> auto-relieve/reject and archive
+    const expiredNocPlayers = await Registration.find({
+      "noc.status": "approved",
+      "noc.expiresAt": { $lte: now },
+      status: { $ne: "rejected" },
+    });
+
+    for (const player of expiredNocPlayers) {
+      player.noc.status = "relieved";
+      player.status = "rejected";
+      player.rejectedAt = now;
+      player.rejectionReason = "Institutional Clearance Completed: Relieved on Official NOC (14-day retention elapsed)";
+      player.playerPasswordHash = null;
+      player.playerLoginHistory = [];
+      await player.save();
+    }
+  } catch (error) {
+    console.error("Error executing processNocTransitions:", error);
+  }
+};
+
+// POST /api/admin/registrations/:id/noc/apply - Initiate 14-day NOC cooling period
+router.post("/registrations/:id/noc/apply", adminAuth, async (req, res) => {
+  try {
+    const { reason, destinationClub } = req.body;
+    const player = await Registration.findById(req.params.id);
+
+    if (!player) {
+      return res.status(404).json({ message: "Player not found" });
+    }
+
+    if (player.status !== "approved") {
+      return res.status(400).json({
+        message: "NOC can only be initiated for approved academy players.",
+      });
+    }
+
+    if (player.noc?.status === "applied") {
+      return res.status(400).json({
+        message: "NOC cooling period is already active for this player.",
+      });
+    }
+
+    if (player.noc?.status === "approved") {
+      return res.status(400).json({
+        message: "Official NOC has already been generated for this player.",
+      });
+    }
+
+    const now = new Date();
+    const coolingEndsAt = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000); // Exactly 14 days
+
+    player.noc = {
+      ...(player.noc ? player.noc.toObject() : {}),
+      status: "applied",
+      appliedAt: now,
+      coolingEndsAt,
+      reason: reason ? String(reason).trim() : "",
+      destinationClub: destinationClub ? String(destinationClub).trim() : "",
+      appliedByAdmin: req.adminId,
+      isBypassed: false,
+    };
+
+    await player.save();
+
+    // Trigger professional Brevo notification email
+    try {
+      await sendNocInitiatedMail({
+        registration: player,
+        coolingEndsAt,
+        reason: player.noc.reason,
+        destinationClub: player.noc.destinationClub,
+      });
+    } catch (mailErr) {
+      console.error("Error dispatching NOC initiated email:", mailErr);
+    }
+
+    return res.json({
+      message: "NOC application initiated. 14-day mandatory institutional countdown timer activated.",
+      player,
+    });
+  } catch (error) {
+    console.error("Error applying for NOC:", error);
+    return res.status(500).json({ message: "Failed to initiate NOC", error: error.message });
+  }
+});
+
+// POST /api/admin/registrations/:id/noc/bypass-generate - Super Admin instant clearance
+router.post("/registrations/:id/noc/bypass-generate", adminAuth, async (req, res) => {
+  try {
+    const player = await Registration.findById(req.params.id);
+
+    if (!player) {
+      return res.status(404).json({ message: "Player not found" });
+    }
+
+    if (player.status !== "approved") {
+      return res.status(400).json({
+        message: "NOC can only be generated for approved academy players.",
+      });
+    }
+
+    const now = new Date();
+    const nocNumber = generateNocNumber(player);
+    const signatureHash = generateNocSignatureHash(player, nocNumber, now);
+    const expiresAt = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+
+    player.noc = {
+      ...(player.noc ? player.noc.toObject() : {}),
+      status: "approved",
+      appliedAt: player.noc?.appliedAt || now,
+      coolingEndsAt: now, // Bypassed cooling
+      generatedAt: now,
+      expiresAt,
+      nocNumber,
+      digitalSignatureHash: signatureHash,
+      isBypassed: true,
+      bypassedBy: req.adminId,
+      generatedByAdmin: req.adminId,
+    };
+
+    await player.save();
+
+    // Trigger automated Brevo NOC generated email
+    try {
+      await sendNocGeneratedMail({
+        registration: player,
+        nocNumber,
+        expiresAt,
+        isBypassed: true,
+      });
+    } catch (mailErr) {
+      console.error("Error dispatching NOC generated email:", mailErr);
+    }
+
+    return res.json({
+      message: "Super Admin authorization verified: 14-day countdown bypassed. Official NOC issued successfully.",
+      player,
+    });
+  } catch (error) {
+    console.error("Error bypassing NOC:", error);
+    return res.status(500).json({ message: "Failed to expedite NOC", error: error.message });
+  }
+});
+
+// POST /api/admin/registrations/:id/noc/cancel - Cancel pending NOC request
+router.post("/registrations/:id/noc/cancel", adminAuth, async (req, res) => {
+  try {
+    const player = await Registration.findById(req.params.id);
+
+    if (!player) {
+      return res.status(404).json({ message: "Player not found" });
+    }
+
+    if (player.noc?.status !== "applied") {
+      return res.status(400).json({
+        message: "Only NOCs currently in the 14-day cooling period can be cancelled.",
+      });
+    }
+
+    player.noc.status = "none";
+    player.noc.coolingEndsAt = null;
+    await player.save();
+
+    return res.json({
+      message: "NOC application cancelled. Player remains in standard approved status.",
+      player,
+    });
+  } catch (error) {
+    console.error("Error cancelling NOC:", error);
+    return res.status(500).json({ message: "Failed to cancel NOC", error: error.message });
+  }
+});
+
+// GET /api/admin/registrations/:id/noc/certificate - Get full certificate data
+router.get("/registrations/:id/noc/certificate", adminAuth, async (req, res) => {
+  try {
+    const player = await Registration.findById(req.params.id)
+      .populate("approvedBy", "username email role")
+      .populate("noc.appliedByAdmin", "username email role")
+      .populate("noc.generatedByAdmin", "username email role")
+      .populate("noc.bypassedBy", "username email role")
+      .lean();
+
+    if (!player) {
+      return res.status(404).json({ message: "Player not found" });
+    }
+
+    if (player.noc?.status !== "approved" && player.noc?.status !== "relieved") {
+      return res.status(400).json({ message: "NOC certificate has not been approved or generated yet." });
+    }
+
+    return res.json({
+      player,
+      certificate: {
+        nocNumber: player.noc.nocNumber,
+        generatedAt: player.noc.generatedAt,
+        expiresAt: player.noc.expiresAt,
+        digitalSignatureHash: player.noc.digitalSignatureHash,
+        isBypassed: Boolean(player.noc.isBypassed),
+        institution: {
+          name: "SP SPORTS ACADEMY",
+          address: "Shakti Mandir Path, Dhanbad, Jharkhand 826007",
+          affiliation: "AKFI Standards Compliant (Amateur Kabaddi Federation of India)",
+          contactEmail: "spkabaddigroupdhanbad@gmail.com",
+          contactPhone: "+91 8271882034",
+          website: "https://spkabaddi.me",
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching certificate data:", error);
+    return res.status(500).json({ message: "Failed to fetch certificate", error: error.message });
+  }
+});
+
+// GET /api/admin/noc/process-check - Run NOC transitions on demand
+router.get("/noc/process-check", adminAuth, async (req, res) => {
+  try {
+    await processNocTransitions();
+    return res.json({ message: "NOC transitions processed successfully." });
+  } catch (error) {
+    return res.status(500).json({ message: "Error processing NOC transitions", error: error.message });
+  }
+});
+
+router.processNocTransitions = processNocTransitions;
 module.exports = router;

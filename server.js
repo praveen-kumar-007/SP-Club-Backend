@@ -172,6 +172,32 @@ function startBirthdayCron() {
 startBirthdayCron();
 
 /* ----------------------------------------------------
+   NOC TRANSITION CRON JOB (RUNS EVERY 10 MINUTES)
+   - Auto-approves NOC when 14-day cooling completes
+   - Auto-archives profiles when 14-day download window expires
+---------------------------------------------------- */
+
+function startNocCron() {
+  if (typeof adminRoutes.processNocTransitions === "function") {
+    adminRoutes.processNocTransitions().catch((err) =>
+      console.error("Initial NOC transition check error:", err)
+    );
+  }
+
+  cron.schedule("*/10 * * * *", async () => {
+    try {
+      if (typeof adminRoutes.processNocTransitions === "function") {
+        await adminRoutes.processNocTransitions();
+      }
+    } catch (err) {
+      console.error("Error in NOC transition cron job:", err);
+    }
+  });
+}
+
+startNocCron();
+
+/* ----------------------------------------------------
    🔴 GLOBAL ERROR HANDLER (CRITICAL FIX)
    Catches Multer / Cloudinary / Validation errors
 ---------------------------------------------------- */

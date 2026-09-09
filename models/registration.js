@@ -218,6 +218,74 @@ const registrationSchema = new mongoose.Schema({
       },
     },
   ],
+
+  // Institutional No Objection Certificate (NOC) Tracking
+  noc: {
+    status: {
+      type: String,
+      enum: ["none", "applied", "approved", "relieved"],
+      default: "none",
+    },
+    appliedAt: {
+      type: Date,
+      default: null,
+    },
+    coolingEndsAt: {
+      type: Date,
+      default: null,
+    },
+    generatedAt: {
+      type: Date,
+      default: null,
+    },
+    expiresAt: {
+      type: Date,
+      default: null,
+    },
+    nocNumber: {
+      type: String,
+      default: null,
+    },
+    reason: {
+      type: String,
+      default: "",
+    },
+    destinationClub: {
+      type: String,
+      default: "",
+    },
+    appliedByAdmin: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Admin",
+      default: null,
+    },
+    generatedByAdmin: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Admin",
+      default: null,
+    },
+    isBypassed: {
+      type: Boolean,
+      default: false,
+    },
+    bypassedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Admin",
+      default: null,
+    },
+    digitalSignatureHash: {
+      type: String,
+      default: null,
+    },
+    downloadCount: {
+      type: Number,
+      default: 0,
+    },
+    lastDownloadedAt: {
+      type: Date,
+      default: null,
+    },
+  },
 });
 
 // Indexes
@@ -229,6 +297,8 @@ registrationSchema.index({ gender: 1, jerseyNumber: 1 }, { unique: true, partial
 registrationSchema.index({ "attendance.date": 1 });
 registrationSchema.index({ feeAccessEnabled: 1 });
 registrationSchema.index({ "feePayments.month": 1 });
+registrationSchema.index({ "noc.status": 1, "noc.coolingEndsAt": 1 });
+registrationSchema.index({ "noc.expiresAt": 1 });
 
 registrationSchema.path("jerseyNumber").validate(async function (value) {
   if (value === null || value === undefined) return true;

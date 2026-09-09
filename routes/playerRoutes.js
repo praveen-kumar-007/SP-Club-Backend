@@ -1,10 +1,11 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
 const { cloudinary, upload } = require("../config/cloudinary");
 const Registration = require("../models/registration");
 const PlayerMessage = require("../models/playerMessage");
-const { sendPasswordOtpMail } = require("../services/brevoMailer");
+const { sendPasswordOtpMail, sendNocGeneratedMail } = require("../services/brevoMailer");
 const { playerAuth } = require("../middleware/playerAuth");
 
 const router = express.Router();
@@ -492,14 +493,44 @@ router.patch("/password/change", playerAuth, async (req, res) => {
 
 router.get("/me", playerAuth, async (req, res) => {
   try {
-    const player = await Registration.findById(req.playerId)
-      .select(
-        "_id name email role idCardNumber phone parentsPhone aadharNumber dob bloodGroup gender address clubDetails photo certificates kitSize jerseyNumber status feeAccessEnabled",
-      )
-      .lean();
+    const player = await Registration.findById(req.playerId);
 
     if (!player) {
       return res.status(404).json({ message: "Player not found" });
+    }
+
+    // Auto-check if 14-day NOC cooling period has elapsed
+    if (
+      player.noc?.status === "applied" &&
+      player.noc?.coolingEndsAt &&
+      new Date(player.noc.coolingEndsAt).getTime() <= Date.now()
+    ) {
+      const currentYear = new Date().getFullYear();
+      const seed = (player.idCardNumber || player._id.toString()).slice(-4).toUpperCase();
+      const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+      const nocNum = `SPA-NOC-${currentYear}-${seed}-${randomSuffix}`;
+      const now = new Date();
+      const expiry = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+      const payload = `${player._id}_${player.name}_${nocNum}_${now.toISOString()}_SP_SPORTS_ACADEMY_DHANBAD_VERIFIED`;
+      const hash = crypto.createHash("sha256").update(payload).digest("hex");
+
+      player.noc.status = "approved";
+      player.noc.generatedAt = now;
+      player.noc.expiresAt = expiry;
+      player.noc.nocNumber = nocNum;
+      player.noc.digitalSignatureHash = hash;
+      await player.save();
+
+      try {
+        await sendNocGeneratedMail({
+          registration: player,
+          nocNumber: nocNum,
+          expiresAt: expiry,
+          isBypassed: false,
+        });
+      } catch (mailErr) {
+        console.error("NOC generated mail error in player /me:", mailErr);
+      }
     }
 
     return res.json({
@@ -525,6 +556,7 @@ router.get("/me", playerAuth, async (req, res) => {
         certificates: Array.isArray(player.certificates)
           ? player.certificates
           : [],
+        noc: player.noc || { status: "none" },
       },
     });
   } catch (error) {
@@ -932,6 +964,65 @@ router.get("/fees", playerAuth, async (req, res) => {
   } catch (error) {
     console.error("Player fee status fetch error:", error);
     return res.status(500).json({ message: "Failed to fetch fee status" });
+  }
+});
+
+// GET /api/player/noc/certificate - Get full institutional certificate data for player download
+router.get("/noc/certificate", playerAuth, async (req, res) => {
+  try {
+    const player = await Registration.findById(req.playerId)
+      .populate("approvedBy", "username email role")
+      .lean();
+
+    if (!player) {
+      return res.status(404).json({ message: "Player not found" });
+    }
+
+    if (player.noc?.status !== "approved" && player.noc?.status !== "relieved") {
+      return res.status(400).json({ message: "NOC certificate is not issued or currently in the 14-day cooling period." });
+    }
+
+    return res.json({
+      player,
+      certificate: {
+        nocNumber: player.noc.nocNumber,
+        generatedAt: player.noc.generatedAt,
+        expiresAt: player.noc.expiresAt,
+        digitalSignatureHash: player.noc.digitalSignatureHash,
+        isBypassed: Boolean(player.noc.isBypassed),
+        institution: {
+          name: "SP SPORTS ACADEMY",
+          address: "Shakti Mandir Path, Dhanbad, Jharkhand 826007",
+          affiliation: "AKFI Standards Compliant (Amateur Kabaddi Federation of India)",
+          contactEmail: "spkabaddigroupdhanbad@gmail.com",
+          contactPhone: "+91 8271882034",
+          website: "https://spkabaddi.me",
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching player certificate:", error);
+    return res.status(500).json({ message: "Failed to load NOC certificate" });
+  }
+});
+
+// POST /api/player/noc/downloaded - Track player certificate download event
+router.post("/noc/downloaded", playerAuth, async (req, res) => {
+  try {
+    const player = await Registration.findById(req.playerId);
+    if (!player) {
+      return res.status(404).json({ message: "Player not found" });
+    }
+
+    if (player.noc) {
+      player.noc.downloadCount = (player.noc.downloadCount || 0) + 1;
+      player.noc.lastDownloadedAt = new Date();
+      await player.save();
+    }
+
+    return res.json({ success: true, downloadCount: player.noc?.downloadCount || 1 });
+  } catch (error) {
+    return res.status(500).json({ message: "Failed to record download event" });
   }
 });
 

@@ -480,6 +480,130 @@ const sendBirthdayFollowupMail = async (players) => {
   });
 };
 
+const sendNocInitiatedMail = async ({ registration, coolingEndsAt, reason, destinationClub }) => {
+  const enabled = await isMailEnabled();
+  if (!enabled) return { skipped: true, reason: "disabled" };
+
+  if (!registration?.email) return { skipped: true, reason: "missing-recipient" };
+
+  const frontendUrl = (
+    process.env.FRONTEND_URL || "https://spkabaddi.me"
+  ).replace(/\/+$/, "");
+  const dashboardUrl = `${frontendUrl}/player/dashboard`;
+
+  const formattedCoolingEnd = coolingEndsAt
+    ? new Date(coolingEndsAt).toLocaleDateString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "14 days from today";
+
+  const html = buildEmailTemplate({
+    title: "NOC Application Initiated 📋",
+    subtitle: "14-Day Mandatory Institutional Cooling Period Started",
+    contentHtml: `
+      <p>Dear <strong>${registration.name || "Player"}</strong>,</p>
+      <p>An official application for a <strong>No Objection Certificate (NOC)</strong> has been initiated for your registration at <strong>SP Sports Academy</strong>.</p>
+      
+      <div style="background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;margin:16px 0;">
+        <p style="margin:0 0 6px 0;"><strong>Player ID / ID Card:</strong> ${registration.idCardNumber || "SP-MEMBER"}</p>
+        <p style="margin:0 0 6px 0;"><strong>Initiation Date:</strong> ${new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</p>
+        <p style="margin:0 0 6px 0;"><strong>14-Day Cooling Period Ends:</strong> <span style="color:#d97706;font-weight:700;">${formattedCoolingEnd}</span></p>
+        ${destinationClub ? `<p style="margin:0 0 6px 0;"><strong>Destination Club / Organization:</strong> ${destinationClub}</p>` : ""}
+        ${reason ? `<p style="margin:0;"><strong>Reason:</strong> ${reason}</p>` : ""}
+      </div>
+
+      <p><strong>Mandatory Institutional Policy:</strong></p>
+      <ul style="padding-left:20px;color:#475569;line-height:1.6;">
+        <li>As per the regulations of SP Sports Academy and affiliated Kabaddi authorities, a <strong>mandatory 14-day cooling and verification period</strong> is required.</li>
+        <li>A live countdown timer has been activated on your <strong>Player Dashboard</strong> tracking every second until issuance.</li>
+        <li>During this period, ensure that all academy training kits, equipment, and pending monthly fee dues are fully settled.</li>
+        <li>Once the 14 days are complete (or upon authorized Super Admin expedited clearance), your official institutional NOC will be generated automatically.</li>
+      </ul>
+
+      <p style="margin-top:16px;">Click the button below to view your real-time countdown timer and status:</p>
+      <p style="margin-top:16px;">Regards,<br/><strong>SP Sports Academy Administration</strong></p>
+    `,
+    actionButtons: [
+      {
+        text: "View Live NOC Countdown",
+        url: dashboardUrl,
+        type: "primary",
+      },
+    ],
+  });
+
+  return sendBrevoEmail({
+    to: [{ email: registration.email, name: registration.name || "Player" }],
+    subject: "NOC Initiated: 14-Day Institutional Period - SP Sports Academy",
+    htmlContent: html,
+    textContent: `An official NOC application has been initiated for ${registration.name}. The 14-day mandatory institutional cooling period has started and will conclude on ${formattedCoolingEnd}. Track live countdown at: ${dashboardUrl}`,
+  });
+};
+
+const sendNocGeneratedMail = async ({ registration, nocNumber, expiresAt, isBypassed }) => {
+  const enabled = await isMailEnabled();
+  if (!enabled) return { skipped: true, reason: "disabled" };
+
+  if (!registration?.email) return { skipped: true, reason: "missing-recipient" };
+
+  const frontendUrl = (
+    process.env.FRONTEND_URL || "https://spkabaddi.me"
+  ).replace(/\/+$/, "");
+  const dashboardUrl = `${frontendUrl}/player/dashboard`;
+
+  const formattedExpiry = expiresAt
+    ? new Date(expiresAt).toLocaleDateString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      })
+    : "14 days from today";
+
+  const html = buildEmailTemplate({
+    title: "Official NOC Issued & Ready 📜",
+    subtitle: "Your No Objection Certificate is now available for download",
+    contentHtml: `
+      <p>Dear <strong>${registration.name || "Player"}</strong>,</p>
+      <p>We are pleased to inform you that your official <strong>No Objection Certificate (NOC)</strong> has been formally issued by <strong>SP Sports Academy</strong>.</p>
+      
+      <div style="background-color:#ecfdf5;border:2px solid #10b981;border-radius:8px;padding:16px;margin:16px 0;">
+        <p style="margin:0 0 6px 0;font-size:16px;"><strong>Certificate No:</strong> <span style="font-family:monospace;color:#047857;font-weight:700;">${nocNumber}</span></p>
+        <p style="margin:0 0 6px 0;"><strong>Status:</strong> <span style="color:#059669;font-weight:700;">DIGITALLY VERIFIED & SIGNED ✓</span></p>
+        <p style="margin:0 0 6px 0;"><strong>Issuance Mode:</strong> ${isBypassed ? "Institutional Expedited Clearance" : "14-Day Mandatory Clearance Completed"}</p>
+        <p style="margin:0;"><strong>Date of Issue:</strong> ${new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</p>
+      </div>
+
+      <div style="background-color:#fffbeb;border:1px solid #f59e0b;border-radius:8px;padding:12px;margin:16px 0;">
+        <p style="margin:0;color:#92400e;font-size:13px;line-height:1.5;">
+          ⚠️ <strong>CRITICAL NOTICE — 14-Day Download Window:</strong><br/>
+          You have <strong>14 days (until ${formattedExpiry})</strong> to download and preserve your official NOC certificate, attendance dossiers, and ID records. After 14 days, your registration record will be officially relieved and archived, and login access will be decommissioned.
+        </p>
+      </div>
+
+      <p>You can download the official high-resolution PDF certificate with institutional letterhead directly from your Player Dashboard.</p>
+      <p style="margin-top:16px;">We wish you all the best in your future athletic endeavors!<br/><strong>SP Sports Academy Administration</strong></p>
+    `,
+    actionButtons: [
+      {
+        text: "Download Official NOC (PDF)",
+        url: dashboardUrl,
+        type: "primary",
+      },
+    ],
+  });
+
+  return sendBrevoEmail({
+    to: [{ email: registration.email, name: registration.name || "Player" }],
+    subject: `Official NOC Issued: ${nocNumber} - SP Sports Academy`,
+    htmlContent: html,
+    textContent: `Your official No Objection Certificate (${nocNumber}) has been issued by SP Sports Academy. You have 14 days (until ${formattedExpiry}) to download your certificate from your dashboard at ${dashboardUrl}.`,
+  });
+};
+
 module.exports = {
   getMailSettings,
   setMailEnabled,
@@ -490,4 +614,6 @@ module.exports = {
   sendPasswordOtpMail,
   sendAdminPasswordOtpMail,
   sendBirthdayFollowupMail,
+  sendNocInitiatedMail,
+  sendNocGeneratedMail,
 };
