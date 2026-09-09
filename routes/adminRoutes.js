@@ -6,6 +6,7 @@ const bcrypt = require("bcryptjs");
 const Admin = require("../models/admin");
 const Registration = require("../models/registration");
 const PlayerMessage = require("../models/playerMessage");
+const Contact = require("../models/contact");
 const { cloudinary, upload } = require("../config/cloudinary");
 const {
   getMailSettings,
@@ -2465,6 +2466,134 @@ router.delete("/player-messages/:id", adminAuth, async (req, res) => {
   } catch (error) {
     console.error("Error deleting player message:", error);
     return res.status(500).json({ message: "Failed to delete player message" });
+  }
+});
+
+// GET /api/admin/extract/master - Comprehensive Master Data & Dossier Extraction
+router.get("/extract/master", adminAuth, async (req, res) => {
+  try {
+    const { playerId, status, ageGroup, gender, search } = req.query;
+
+    if (playerId) {
+      const player = await Registration.findById(playerId)
+        .populate("approvedBy", "username email role")
+        .populate("idCardGeneratedBy", "username email role")
+        .lean();
+
+      if (!player) {
+        return res.status(404).json({ message: "Player record not found" });
+      }
+
+      // Fetch related communications
+      const messages = await PlayerMessage.find({ playerId: player._id })
+        .sort({ createdAt: -1 })
+        .lean();
+
+      // Fetch related inquiries
+      const inquiries = await Contact.find({
+        $or: [
+          ...(player.email ? [{ email: player.email }] : []),
+          ...(player.phone ? [{ phone: player.phone }] : []),
+        ],
+      })
+        .sort({ createdAt: -1 })
+        .lean();
+
+      // Compute statistics for this player
+      const attendanceList = Array.isArray(player.attendance) ? player.attendance : [];
+      const presentCount = attendanceList.filter((a) => a.status === "present").length;
+      const absentCount = attendanceList.filter((a) => a.status === "absent").length;
+      const totalAttendanceSessions = attendanceList.length;
+      const attendancePercentage = totalAttendanceSessions > 0
+        ? Math.round((presentCount / totalAttendanceSessions) * 100)
+        : 0;
+
+      const feePaymentsList = Array.isArray(player.feePayments) ? player.feePayments : [];
+      const paidMonths = feePaymentsList.filter((f) => f.isPaid).map((f) => f.month);
+      const unpaidMonths = feePaymentsList.filter((f) => !f.isPaid).map((f) => f.month);
+
+      return res.json({
+        type: "single",
+        academy: {
+          name: "SP Sports Academy",
+          subtitle: "Official Player Dossier & Master Record Extract",
+          address: "SP Sports Academy, Shakti Mandir Path, Dhanbad, Jharkhand 826007",
+          affiliation: "AKFI Compliance & Affiliated Standards (Amateur Kabaddi Federation of India)",
+          email: "spkabaddigroupdhanbad@gmail.com",
+          website: "https://spkabaddi.me",
+          extractedAt: new Date(),
+          extractedBy: req.admin?.username || "Admin Authority",
+        },
+        player,
+        summary: {
+          presentCount,
+          absentCount,
+          totalAttendanceSessions,
+          attendancePercentage,
+          paidMonths,
+          unpaidMonths,
+          totalMessages: messages.length,
+          totalInquiries: inquiries.length,
+        },
+        messages,
+        inquiries,
+      });
+    }
+
+    // Academy Master Ledger mode
+    const query = {};
+    if (status && status !== "all") query.status = status;
+    if (ageGroup && ageGroup !== "all") query.ageGroup = ageGroup;
+    if (gender && gender !== "all") query.gender = gender;
+
+    if (search && search.trim()) {
+      const term = search.trim();
+      const regex = new RegExp(term, "i");
+      query.$or = [
+        { name: regex },
+        { email: regex },
+        { phone: regex },
+        { aadharNumber: regex },
+        { idCardNumber: regex },
+      ];
+    }
+
+    const players = await Registration.find(query)
+      .populate("approvedBy", "username email role")
+      .populate("idCardGeneratedBy", "username email role")
+      .sort({ registeredAt: -1 })
+      .lean();
+
+    // Academy overall aggregates
+    const totalCount = await Registration.countDocuments();
+    const approvedCount = await Registration.countDocuments({ status: "approved" });
+    const pendingCount = await Registration.countDocuments({ status: "pending" });
+    const rejectedCount = await Registration.countDocuments({ status: "rejected" });
+
+    return res.json({
+      type: "master",
+      academy: {
+        name: "SP Sports Academy",
+        subtitle: "Academy Master Data Extraction Ledger",
+        address: "SP Sports Academy, Shakti Mandir Path, Dhanbad, Jharkhand 826007",
+        affiliation: "AKFI Compliance & Affiliated Standards (Amateur Kabaddi Federation of India)",
+        email: "spkabaddigroupdhanbad@gmail.com",
+        website: "https://spkabaddi.me",
+        extractedAt: new Date(),
+        extractedBy: req.admin?.username || "Admin Authority",
+      },
+      stats: {
+        total: totalCount,
+        approved: approvedCount,
+        pending: pendingCount,
+        rejected: rejectedCount,
+      },
+      matchedCount: players.length,
+      players,
+    });
+  } catch (error) {
+    console.error("Error in master extract route:", error);
+    return res.status(500).json({ message: "Failed to extract data", error: error.message });
   }
 });
 
