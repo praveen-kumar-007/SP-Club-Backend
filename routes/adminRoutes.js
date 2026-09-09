@@ -972,10 +972,54 @@ router.patch("/mail/settings", adminAuth, async (req, res) => {
   }
 });
 
+const parseEmailRecipients = (input, fieldName = "Email") => {
+  if (!input) return { emails: [] };
+  let rawList = [];
+  if (Array.isArray(input)) {
+    rawList = input;
+  } else if (typeof input === "string") {
+    rawList = input.split(/[,;\n\r]+/).map((s) => s.trim()).filter(Boolean);
+  } else {
+    return {
+      error: `${fieldName} must be a comma-separated string or array of emails`,
+    };
+  }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const emails = [];
+  const seen = new Set();
+
+  for (const item of rawList) {
+    let email = "";
+    let name = "";
+
+    if (typeof item === "string") {
+      email = item.trim();
+    } else if (item && typeof item === "object" && item.email) {
+      email = String(item.email).trim();
+      name = item.name ? String(item.name).trim() : "";
+    }
+
+    if (!email) continue;
+
+    if (!emailRegex.test(email)) {
+      return { error: `Invalid email address in ${fieldName}: "${email}"` };
+    }
+
+    const lower = email.toLowerCase();
+    if (!seen.has(lower)) {
+      seen.add(lower);
+      emails.push(name ? { email, name } : { email });
+    }
+  }
+
+  return { emails };
+};
+
 // POST /api/admin/mail/send - Send branded mail to all or selected approved players
 router.post("/mail/send", adminAuth, async (req, res) => {
   try {
-    const { mode, playerIds, subject, message } = req.body;
+    const { mode, playerIds, cc, bcc, subject, message } = req.body;
 
     if (!subject || !message) {
       return res
@@ -985,6 +1029,24 @@ router.post("/mail/send", adminAuth, async (req, res) => {
 
     if (!mode || !["all", "selected"].includes(mode)) {
       return res.status(400).json({ message: "mode must be all or selected" });
+    }
+
+    let parsedCc = [];
+    if (cc) {
+      const ccResult = parseEmailRecipients(cc, "CC");
+      if (ccResult.error) {
+        return res.status(400).json({ message: ccResult.error });
+      }
+      parsedCc = ccResult.emails;
+    }
+
+    let parsedBcc = [];
+    if (bcc) {
+      const bccResult = parseEmailRecipients(bcc, "BCC");
+      if (bccResult.error) {
+        return res.status(400).json({ message: bccResult.error });
+      }
+      parsedBcc = bccResult.emails;
     }
 
     let query = { status: "approved" };
@@ -1015,6 +1077,8 @@ router.post("/mail/send", adminAuth, async (req, res) => {
 
     const result = await sendCustomAdminMail({
       recipients,
+      cc: parsedCc.length ? parsedCc : undefined,
+      bcc: parsedBcc.length ? parsedBcc : undefined,
       subject: String(subject).trim(),
       messageHtml: htmlBody,
       messageText: String(message),
@@ -1026,9 +1090,14 @@ router.post("/mail/send", adminAuth, async (req, res) => {
       });
     }
 
+    const ccPart = parsedCc.length ? ` (${parsedCc.length} CC)` : "";
+    const bccPart = parsedBcc.length ? ` (${parsedBcc.length} BCC)` : "";
+
     return res.json({
-      message: `Mail sent to ${recipients.length} recipient(s)`,
+      message: `Mail sent to ${recipients.length} recipient(s)${ccPart}${bccPart}`,
       recipientsCount: recipients.length,
+      ccCount: parsedCc.length,
+      bccCount: parsedBcc.length,
     });
   } catch (error) {
     console.error("Error sending admin bulk mail:", error);

@@ -194,7 +194,14 @@ const buildEmailTemplate = ({
   `;
 };
 
-const sendBrevoEmail = async ({ to, subject, htmlContent, textContent }) => {
+const sendBrevoEmail = async ({
+  to,
+  cc,
+  bcc,
+  subject,
+  htmlContent,
+  textContent,
+}) => {
   const apiKey = getApiKey();
 
   if (!apiKey) {
@@ -212,6 +219,14 @@ const sendBrevoEmail = async ({ to, subject, htmlContent, textContent }) => {
       name: REPLY_TO_NAME,
     },
   };
+
+  if (Array.isArray(cc) && cc.length > 0) {
+    payload.cc = cc;
+  }
+
+  if (Array.isArray(bcc) && bcc.length > 0) {
+    payload.bcc = bcc;
+  }
 
   const response = await fetch(BREVO_API_URL, {
     method: "POST",
@@ -365,6 +380,8 @@ const sendAdminPasswordOtpMail = async ({ email, name, otp }) => {
 
 const sendCustomAdminMail = async ({
   recipients,
+  cc,
+  bcc,
   subject,
   messageHtml,
   messageText,
@@ -384,6 +401,8 @@ const sendCustomAdminMail = async ({
 
   return sendBrevoEmail({
     to: recipients,
+    cc,
+    bcc,
     subject,
     htmlContent: html,
     textContent: messageText || "",
