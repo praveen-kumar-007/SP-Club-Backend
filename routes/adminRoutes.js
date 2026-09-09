@@ -1019,7 +1019,7 @@ const parseEmailRecipients = (input, fieldName = "Email") => {
 // POST /api/admin/mail/send - Send branded mail to all or selected approved players
 router.post("/mail/send", adminAuth, async (req, res) => {
   try {
-    const { mode, playerIds, cc, bcc, subject, message } = req.body;
+    const { mode, playerIds, cc, bcc, attachments, subject, message } = req.body;
 
     if (!subject || !message) {
       return res
@@ -1047,6 +1047,28 @@ router.post("/mail/send", adminAuth, async (req, res) => {
         return res.status(400).json({ message: bccResult.error });
       }
       parsedBcc = bccResult.emails;
+    }
+
+    let validAttachments = [];
+    if (attachments) {
+      if (!Array.isArray(attachments)) {
+        return res
+          .status(400)
+          .json({ message: "attachments must be an array" });
+      }
+      for (const att of attachments) {
+        if (
+          !att ||
+          typeof att !== "object" ||
+          !att.name ||
+          (!att.content && !att.url)
+        ) {
+          return res.status(400).json({
+            message: "Each attachment must have a valid name and content/url",
+          });
+        }
+      }
+      validAttachments = attachments;
     }
 
     let query = { status: "approved" };
@@ -1079,6 +1101,7 @@ router.post("/mail/send", adminAuth, async (req, res) => {
       recipients,
       cc: parsedCc.length ? parsedCc : undefined,
       bcc: parsedBcc.length ? parsedBcc : undefined,
+      attachments: validAttachments.length ? validAttachments : undefined,
       subject: String(subject).trim(),
       messageHtml: htmlBody,
       messageText: String(message),
@@ -1092,12 +1115,16 @@ router.post("/mail/send", adminAuth, async (req, res) => {
 
     const ccPart = parsedCc.length ? ` (${parsedCc.length} CC)` : "";
     const bccPart = parsedBcc.length ? ` (${parsedBcc.length} BCC)` : "";
+    const attPart = validAttachments.length
+      ? ` [${validAttachments.length} attachment(s)]`
+      : "";
 
     return res.json({
-      message: `Mail sent to ${recipients.length} recipient(s)${ccPart}${bccPart}`,
+      message: `Mail sent to ${recipients.length} recipient(s)${ccPart}${bccPart}${attPart}`,
       recipientsCount: recipients.length,
       ccCount: parsedCc.length,
       bccCount: parsedBcc.length,
+      attachmentsCount: validAttachments.length,
     });
   } catch (error) {
     console.error("Error sending admin bulk mail:", error);

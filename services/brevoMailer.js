@@ -194,10 +194,17 @@ const buildEmailTemplate = ({
   `;
 };
 
+const cleanBase64 = (content) => {
+  if (typeof content !== "string") return "";
+  const match = content.match(/^data:[^;]+;base64,(.*)$/);
+  return match ? match[1] : content;
+};
+
 const sendBrevoEmail = async ({
   to,
   cc,
   bcc,
+  attachments,
   subject,
   htmlContent,
   textContent,
@@ -226,6 +233,27 @@ const sendBrevoEmail = async ({
 
   if (Array.isArray(bcc) && bcc.length > 0) {
     payload.bcc = bcc;
+  }
+
+  if (Array.isArray(attachments) && attachments.length > 0) {
+    const formattedAttachments = attachments
+      .filter((att) => att && att.name && (att.content || att.url))
+      .map((att) => {
+        if (att.content) {
+          return {
+            name: String(att.name),
+            content: cleanBase64(att.content),
+          };
+        }
+        return {
+          name: String(att.name),
+          url: String(att.url),
+        };
+      });
+
+    if (formattedAttachments.length > 0) {
+      payload.attachment = formattedAttachments;
+    }
   }
 
   const response = await fetch(BREVO_API_URL, {
@@ -382,6 +410,7 @@ const sendCustomAdminMail = async ({
   recipients,
   cc,
   bcc,
+  attachments,
   subject,
   messageHtml,
   messageText,
@@ -403,6 +432,7 @@ const sendCustomAdminMail = async ({
     to: recipients,
     cc,
     bcc,
+    attachments,
     subject,
     htmlContent: html,
     textContent: messageText || "",
