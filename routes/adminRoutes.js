@@ -2478,6 +2478,8 @@ router.get("/extract/master", adminAuth, async (req, res) => {
       const player = await Registration.findById(playerId)
         .populate("approvedBy", "username email role")
         .populate("idCardGeneratedBy", "username email role")
+        .populate("attendance.markedByAdminId", "username email role")
+        .populate("feePayments.updatedBy", "username email role")
         .lean();
 
       if (!player) {
@@ -2561,6 +2563,8 @@ router.get("/extract/master", adminAuth, async (req, res) => {
     const players = await Registration.find(query)
       .populate("approvedBy", "username email role")
       .populate("idCardGeneratedBy", "username email role")
+      .populate("attendance.markedByAdminId", "username email role")
+      .populate("feePayments.updatedBy", "username email role")
       .sort({ registeredAt: -1 })
       .lean();
 
