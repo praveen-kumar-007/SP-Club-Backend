@@ -563,11 +563,11 @@ const sendNocInitiatedMail = async ({ registration, coolingEndsAt, reason, desti
         ${reason ? `<p style="margin:0;"><strong>Reason:</strong> ${reason}</p>` : ""}
       </div>
 
-      <p><strong>Mandatory Institutional Policy:</strong></p>
+      <p><strong>Institutional Handover & Transition Policy:</strong></p>
       <ul style="padding-left:20px;color:#475569;line-height:1.6;">
-        <li>As per the regulations of SP Sports Academy and affiliated Kabaddi authorities, a <strong>mandatory 14-day cooling and verification period</strong> is required.</li>
+        <li>In accordance with <strong>SP Sports Academy guidelines</strong>, a standard <strong>14-day cooling and transition period</strong> is observed for all clearance requests to ensure a smooth handover.</li>
         <li>A live countdown timer has been activated on your <strong>Player Dashboard</strong> tracking every second until issuance.</li>
-        <li>During this period, ensure that all academy training kits, equipment, and pending monthly fee dues are fully settled.</li>
+        <li>During this period, kindly ensure that all academy training kits, equipment, and any pending dues are settled.</li>
         <li>Once the 14 days are complete (or upon authorized Super Admin expedited clearance), your official institutional NOC will be generated automatically.</li>
       </ul>
 
