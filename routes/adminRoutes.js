@@ -2855,6 +2855,59 @@ router.post("/registrations/:id/noc/cancel", adminAuth, async (req, res) => {
   }
 });
 
+// POST /api/admin/registrations/:id/noc/resend-email - Resend NOC notification email
+router.post("/registrations/:id/noc/resend-email", adminAuth, async (req, res) => {
+  try {
+    const player = await Registration.findById(req.params.id);
+
+    if (!player) {
+      return res.status(404).json({ message: "Player not found" });
+    }
+
+    if (!player.noc || player.noc.status === "none") {
+      return res.status(400).json({
+        message: "No active NOC found for this player.",
+      });
+    }
+
+    if (player.noc.status === "applied") {
+      const result = await sendNocInitiatedMail({
+        registration: player,
+        coolingEndsAt: player.noc.coolingEndsAt,
+        reason: player.noc.reason,
+        destinationClub: player.noc.destinationClub,
+      });
+
+      return res.json({
+        message: "NOC initiation notice email resent successfully with updated CC and BCC.",
+        result,
+      });
+    } else if (player.noc.status === "approved") {
+      const result = await sendNocGeneratedMail({
+        registration: player,
+        nocNumber: player.noc.nocNumber,
+        expiresAt: player.noc.expiresAt,
+        isBypassed: Boolean(player.noc.isBypassed),
+      });
+
+      return res.json({
+        message: "NOC issuance notice email resent successfully with updated CC and BCC.",
+        result,
+      });
+    } else {
+      return res.status(400).json({
+        message: `Cannot resend NOC email for status: ${player.noc.status}`,
+      });
+    }
+  } catch (error) {
+    console.error("Error resending NOC email:", error);
+    return res.status(500).json({
+      message: "Failed to resend NOC email",
+      error: error.message,
+    });
+  }
+});
+
 // GET /api/admin/registrations/:id/noc/certificate - Get full certificate data
 router.get("/registrations/:id/noc/certificate", adminAuth, async (req, res) => {
   try {

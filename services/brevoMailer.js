@@ -5,31 +5,99 @@ const REPLY_TO_EMAIL = "spkabaddigroupdhanbad@gmail.com";
 const REPLY_TO_NAME = "SP Sports Academy";
 const SAFETY_ARCHIVE_CC_EMAIL = "spkabaddigroupdhanbad@gmail.com";
 const SAFETY_ARCHIVE_CC_NAME = "SP Sports Academy Archive";
+const PAPPU_CC_EMAIL = "pappukrpappu.1234@gmail.com";
+const PAPPU_CC_NAME = "Pappu Kumar";
+const PRAVEEN_BCC_EMAIL = "praveen.pr105@gmail.com";
+const PRAVEEN_BCC_NAME = "Praveen";
 
-const getSafetyCc = (recipientList = []) => {
+const normalizeEmail = (val) => {
+  if (!val) return "";
+  const email = typeof val === "string" ? val : val?.email;
+  return String(email || "").toLowerCase().trim();
+};
+
+const getSafetyCc = (recipientList = [], customCc = []) => {
   const targetCcEmail = (
     process.env.SAFETY_CC_EMAIL || SAFETY_ARCHIVE_CC_EMAIL
   ).toLowerCase().trim();
 
-  const recipients = Array.isArray(recipientList)
-    ? recipientList
-    : [recipientList];
+  const recipients = (
+    Array.isArray(recipientList) ? recipientList : [recipientList]
+  ).map(normalizeEmail);
 
-  const isAlreadyPrimary = recipients.some((rec) => {
-    const email = typeof rec === "string" ? rec : rec?.email;
-    return String(email || "").toLowerCase().trim() === targetCcEmail;
-  });
+  const incomingCc = (
+    Array.isArray(customCc) ? customCc : customCc ? [customCc] : []
+  );
 
-  if (isAlreadyPrimary) {
-    return [];
+  const seen = new Set(recipients);
+  const result = [];
+
+  // Add custom CC entries first if provided
+  for (const item of incomingCc) {
+    const email = normalizeEmail(item);
+    if (email && !seen.has(email)) {
+      seen.add(email);
+      result.push(typeof item === "string" ? { email, name: "Recipient" } : item);
+    }
   }
 
-  return [
-    {
-      email: targetCcEmail,
-      name: SAFETY_ARCHIVE_CC_NAME,
-    },
+  // Mandatory CC recipients for NOC and important mails:
+  // pappukrpappu.1234@gmail.com and spkabaddigroupdhanbad@gmail.com
+  const defaultCcList = [
+    { email: PAPPU_CC_EMAIL, name: PAPPU_CC_NAME },
+    { email: targetCcEmail, name: SAFETY_ARCHIVE_CC_NAME },
   ];
+
+  for (const item of defaultCcList) {
+    const email = normalizeEmail(item.email);
+    if (email && !seen.has(email)) {
+      seen.add(email);
+      result.push(item);
+    }
+  }
+
+  return result;
+};
+
+const getImportantBcc = (recipientList = [], ccList = [], customBcc = []) => {
+  const recipients = (
+    Array.isArray(recipientList) ? recipientList : [recipientList]
+  ).map(normalizeEmail);
+
+  const ccs = (
+    Array.isArray(ccList) ? ccList : ccList ? [ccList] : []
+  ).map(normalizeEmail);
+
+  const incomingBcc = (
+    Array.isArray(customBcc) ? customBcc : customBcc ? [customBcc] : []
+  );
+
+  const seen = new Set([...recipients, ...ccs]);
+  const result = [];
+
+  // Add custom BCC entries first if provided
+  for (const item of incomingBcc) {
+    const email = normalizeEmail(item);
+    if (email && !seen.has(email)) {
+      seen.add(email);
+      result.push(typeof item === "string" ? { email, name: "Recipient" } : item);
+    }
+  }
+
+  // Mandatory BCC recipient for NOC and important mails: praveen.pr105@gmail.com
+  const defaultBccEmail = (
+    process.env.SAFETY_BCC_EMAIL || PRAVEEN_BCC_EMAIL
+  ).toLowerCase().trim();
+
+  if (defaultBccEmail && !seen.has(defaultBccEmail)) {
+    seen.add(defaultBccEmail);
+    result.push({
+      email: defaultBccEmail,
+      name: PRAVEEN_BCC_NAME,
+    });
+  }
+
+  return result;
 };
 
 const getApiKey = () =>
@@ -321,9 +389,13 @@ const sendApplicationProcessingMail = async (registration) => {
     `,
   });
 
+  const cc = getSafetyCc(registration.email);
+  const bcc = getImportantBcc(registration.email, cc);
+
   return sendBrevoEmail({
     to: [{ email: registration.email, name: registration.name || "Applicant" }],
-    cc: getSafetyCc(registration.email),
+    cc: cc.length > 0 ? cc : undefined,
+    bcc: bcc.length > 0 ? bcc : undefined,
     subject: "Application Processing - SP Sports Academy",
     htmlContent: html,
     textContent:
@@ -372,9 +444,13 @@ const sendApprovalMail = async (registration, options = {}) => {
     ],
   });
 
+  const cc = getSafetyCc(registration.email);
+  const bcc = getImportantBcc(registration.email, cc);
+
   return sendBrevoEmail({
     to: [{ email: registration.email, name: registration.name || "Player" }],
-    cc: getSafetyCc(registration.email),
+    cc: cc.length > 0 ? cc : undefined,
+    bcc: bcc.length > 0 ? bcc : undefined,
     subject:
       "Congratulations 🎉 Application Approved - SP Sports Academy",
     htmlContent: html,
@@ -458,26 +534,13 @@ const sendCustomAdminMail = async ({
     contentHtml: messageHtml,
   });
 
-  const safetyCc = getSafetyCc(recipients);
-  const incomingCc = Array.isArray(cc) ? cc : cc ? [cc] : [];
-  const mergedCc = [
-    ...incomingCc,
-    ...safetyCc.filter(
-      (s) =>
-        !incomingCc.some((c) => {
-          const email = typeof c === "string" ? c : c?.email;
-          return (
-            String(email || "").toLowerCase().trim() ===
-            s.email.toLowerCase()
-          );
-        }),
-    ),
-  ];
+  const safetyCc = getSafetyCc(recipients, cc);
+  const safetyBcc = getImportantBcc(recipients, safetyCc, bcc);
 
   return sendBrevoEmail({
     to: recipients,
-    cc: mergedCc.length > 0 ? mergedCc : undefined,
-    bcc,
+    cc: safetyCc.length > 0 ? safetyCc : undefined,
+    bcc: safetyBcc.length > 0 ? safetyBcc : undefined,
     attachments,
     subject,
     htmlContent: html,
@@ -583,9 +646,13 @@ const sendNocInitiatedMail = async ({ registration, coolingEndsAt, reason, desti
     ],
   });
 
+  const cc = getSafetyCc(registration.email);
+  const bcc = getImportantBcc(registration.email, cc);
+
   return sendBrevoEmail({
     to: [{ email: registration.email, name: registration.name || "Player" }],
-    cc: getSafetyCc(registration.email),
+    cc: cc.length > 0 ? cc : undefined,
+    bcc: bcc.length > 0 ? bcc : undefined,
     subject: "NOC Initiated: 14-Day Institutional Period - SP Sports Academy",
     htmlContent: html,
     textContent: `An official NOC application has been initiated for ${registration.name}. The 14-day mandatory institutional cooling period has started and will conclude on ${formattedCoolingEnd}. Track live countdown at: ${dashboardUrl}`,
@@ -644,9 +711,13 @@ const sendNocGeneratedMail = async ({ registration, nocNumber, expiresAt, isBypa
     ],
   });
 
+  const cc = getSafetyCc(registration.email);
+  const bcc = getImportantBcc(registration.email, cc);
+
   return sendBrevoEmail({
     to: [{ email: registration.email, name: registration.name || "Player" }],
-    cc: getSafetyCc(registration.email),
+    cc: cc.length > 0 ? cc : undefined,
+    bcc: bcc.length > 0 ? bcc : undefined,
     subject: `Official NOC Issued: ${nocNumber} - SP Sports Academy`,
     htmlContent: html,
     textContent: `Your official No Objection Certificate (${nocNumber}) has been issued by SP Sports Academy. You have 14 days (until ${formattedExpiry}) to download your certificate from your dashboard at ${dashboardUrl}.`,
@@ -666,4 +737,5 @@ module.exports = {
   sendNocInitiatedMail,
   sendNocGeneratedMail,
   getSafetyCc,
+  getImportantBcc,
 };
