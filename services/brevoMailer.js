@@ -3,6 +3,34 @@ const MailSettings = require("../models/mailSettings");
 const BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
 const REPLY_TO_EMAIL = "spkabaddigroupdhanbad@gmail.com";
 const REPLY_TO_NAME = "SP Sports Academy";
+const SAFETY_ARCHIVE_CC_EMAIL = "spkabaddigroupdhanbad@gmail.com";
+const SAFETY_ARCHIVE_CC_NAME = "SP Sports Academy Archive";
+
+const getSafetyCc = (recipientList = []) => {
+  const targetCcEmail = (
+    process.env.SAFETY_CC_EMAIL || SAFETY_ARCHIVE_CC_EMAIL
+  ).toLowerCase().trim();
+
+  const recipients = Array.isArray(recipientList)
+    ? recipientList
+    : [recipientList];
+
+  const isAlreadyPrimary = recipients.some((rec) => {
+    const email = typeof rec === "string" ? rec : rec?.email;
+    return String(email || "").toLowerCase().trim() === targetCcEmail;
+  });
+
+  if (isAlreadyPrimary) {
+    return [];
+  }
+
+  return [
+    {
+      email: targetCcEmail,
+      name: SAFETY_ARCHIVE_CC_NAME,
+    },
+  ];
+};
 
 const getApiKey = () =>
   process.env.BRAVO_API_KEY || process.env.BREVO_API_KEY || "";
@@ -295,6 +323,7 @@ const sendApplicationProcessingMail = async (registration) => {
 
   return sendBrevoEmail({
     to: [{ email: registration.email, name: registration.name || "Applicant" }],
+    cc: getSafetyCc(registration.email),
     subject: "Application Processing - SP Sports Academy",
     htmlContent: html,
     textContent:
@@ -345,6 +374,7 @@ const sendApprovalMail = async (registration, options = {}) => {
 
   return sendBrevoEmail({
     to: [{ email: registration.email, name: registration.name || "Player" }],
+    cc: getSafetyCc(registration.email),
     subject:
       "Congratulations 🎉 Application Approved - SP Sports Academy",
     htmlContent: html,
@@ -428,9 +458,25 @@ const sendCustomAdminMail = async ({
     contentHtml: messageHtml,
   });
 
+  const safetyCc = getSafetyCc(recipients);
+  const incomingCc = Array.isArray(cc) ? cc : cc ? [cc] : [];
+  const mergedCc = [
+    ...incomingCc,
+    ...safetyCc.filter(
+      (s) =>
+        !incomingCc.some((c) => {
+          const email = typeof c === "string" ? c : c?.email;
+          return (
+            String(email || "").toLowerCase().trim() ===
+            s.email.toLowerCase()
+          );
+        }),
+    ),
+  ];
+
   return sendBrevoEmail({
     to: recipients,
-    cc,
+    cc: mergedCc.length > 0 ? mergedCc : undefined,
     bcc,
     attachments,
     subject,
@@ -474,6 +520,7 @@ const sendBirthdayFollowupMail = async (players) => {
       { email: "praveen.pr105@gmail.com", name: "Praveen" },
       { email: "pappukrpappu.1234@gmail.com", name: "Pappu" }
     ],
+    cc: getSafetyCc(["praveen.pr105@gmail.com", "pappukrpappu.1234@gmail.com"]),
     subject: "Player Birthdays Today 🎂 - SP Sports Academy",
     htmlContent: html,
     textContent: `Birthdays today: ${players.map(p => p.name).join(', ')}`,
@@ -538,6 +585,7 @@ const sendNocInitiatedMail = async ({ registration, coolingEndsAt, reason, desti
 
   return sendBrevoEmail({
     to: [{ email: registration.email, name: registration.name || "Player" }],
+    cc: getSafetyCc(registration.email),
     subject: "NOC Initiated: 14-Day Institutional Period - SP Sports Academy",
     htmlContent: html,
     textContent: `An official NOC application has been initiated for ${registration.name}. The 14-day mandatory institutional cooling period has started and will conclude on ${formattedCoolingEnd}. Track live countdown at: ${dashboardUrl}`,
@@ -598,6 +646,7 @@ const sendNocGeneratedMail = async ({ registration, nocNumber, expiresAt, isBypa
 
   return sendBrevoEmail({
     to: [{ email: registration.email, name: registration.name || "Player" }],
+    cc: getSafetyCc(registration.email),
     subject: `Official NOC Issued: ${nocNumber} - SP Sports Academy`,
     htmlContent: html,
     textContent: `Your official No Objection Certificate (${nocNumber}) has been issued by SP Sports Academy. You have 14 days (until ${formattedExpiry}) to download your certificate from your dashboard at ${dashboardUrl}.`,
@@ -616,4 +665,5 @@ module.exports = {
   sendBirthdayFollowupMail,
   sendNocInitiatedMail,
   sendNocGeneratedMail,
+  getSafetyCc,
 };
