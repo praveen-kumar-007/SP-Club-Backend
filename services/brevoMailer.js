@@ -16,6 +16,35 @@ const normalizeEmail = (val) => {
   return String(email || "").toLowerCase().trim();
 };
 
+const formatISTDateTime = (dateVal) => {
+  if (!dateVal) return "N/A";
+  const d = new Date(dateVal);
+  if (isNaN(d.getTime())) return "N/A";
+  return (
+    d.toLocaleString("en-IN", {
+      timeZone: "Asia/Kolkata",
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    }) + " IST"
+  );
+};
+
+const formatISTDate = (dateVal) => {
+  if (!dateVal) return "N/A";
+  const d = new Date(dateVal);
+  if (isNaN(d.getTime())) return "N/A";
+  return d.toLocaleDateString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+};
+
 const getSafetyCc = (recipientList = [], customCc = []) => {
   const targetCcEmail = (
     process.env.SAFETY_CC_EMAIL || SAFETY_ARCHIVE_CC_EMAIL
@@ -557,7 +586,7 @@ const sendBirthdayFollowupMail = async (players) => {
   let playersListHtml = players.map(p => `
     <li style="margin-bottom: 10px;">
       <strong>Name:</strong> ${p.name || 'N/A'}<br/>
-      <strong>DOB:</strong> ${p.dob ? new Date(p.dob).toDateString() : 'N/A'}<br/>
+      <strong>DOB:</strong> ${formatISTDate(p.dob)}<br/>
       <strong>Email:</strong> ${p.email || 'N/A'}<br/>
       <strong>Phone:</strong> ${p.phone || 'N/A'}<br/>
       <strong>Role:</strong> ${p.role || 'N/A'}<br/>
@@ -602,14 +631,9 @@ const sendNocInitiatedMail = async ({ registration, coolingEndsAt, reason, desti
   const dashboardUrl = `${frontendUrl}/player/dashboard`;
 
   const formattedCoolingEnd = coolingEndsAt
-    ? new Date(coolingEndsAt).toLocaleDateString("en-IN", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      })
+    ? formatISTDateTime(coolingEndsAt)
     : "14 days from today";
+  const initiationDate = formatISTDate(new Date());
 
   const html = buildEmailTemplate({
     title: "NOC Application Initiated 📋",
@@ -620,7 +644,7 @@ const sendNocInitiatedMail = async ({ registration, coolingEndsAt, reason, desti
       
       <div style="background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;margin:16px 0;">
         <p style="margin:0 0 6px 0;"><strong>Player ID / ID Card:</strong> ${registration.idCardNumber || "SP-MEMBER"}</p>
-        <p style="margin:0 0 6px 0;"><strong>Initiation Date:</strong> ${new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</p>
+        <p style="margin:0 0 6px 0;"><strong>Initiation Date:</strong> ${initiationDate}</p>
         <p style="margin:0 0 6px 0;"><strong>14-Day Cooling Period Ends:</strong> <span style="color:#d97706;font-weight:700;">${formattedCoolingEnd}</span></p>
         ${destinationClub ? `<p style="margin:0 0 6px 0;"><strong>Destination Club / Organization:</strong> ${destinationClub}</p>` : ""}
         ${reason ? `<p style="margin:0;"><strong>Reason:</strong> ${reason}</p>` : ""}
@@ -671,12 +695,9 @@ const sendNocGeneratedMail = async ({ registration, nocNumber, expiresAt, isBypa
   const dashboardUrl = `${frontendUrl}/player/dashboard`;
 
   const formattedExpiry = expiresAt
-    ? new Date(expiresAt).toLocaleDateString("en-IN", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      })
+    ? formatISTDate(expiresAt)
     : "14 days from today";
+  const issueDate = formatISTDate(new Date());
 
   const html = buildEmailTemplate({
     title: "Official NOC Issued & Ready 📜",
@@ -689,7 +710,7 @@ const sendNocGeneratedMail = async ({ registration, nocNumber, expiresAt, isBypa
         <p style="margin:0 0 6px 0;font-size:16px;"><strong>Certificate No:</strong> <span style="font-family:monospace;color:#047857;font-weight:700;">${nocNumber}</span></p>
         <p style="margin:0 0 6px 0;"><strong>Status:</strong> <span style="color:#059669;font-weight:700;">DIGITALLY VERIFIED & SIGNED ✓</span></p>
         <p style="margin:0 0 6px 0;"><strong>Issuance Mode:</strong> ${isBypassed ? "Institutional Expedited Clearance" : "14-Day Mandatory Clearance Completed"}</p>
-        <p style="margin:0;"><strong>Date of Issue:</strong> ${new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</p>
+        <p style="margin:0;"><strong>Date of Issue:</strong> ${issueDate}</p>
       </div>
 
       <div style="background-color:#fffbeb;border:1px solid #f59e0b;border-radius:8px;padding:12px;margin:16px 0;">
