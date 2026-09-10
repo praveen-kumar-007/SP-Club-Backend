@@ -2496,6 +2496,9 @@ router.get("/extract/master", adminAuth, async (req, res) => {
         .populate("idCardGeneratedBy", "username email role")
         .populate("attendance.markedByAdminId", "username email role")
         .populate("feePayments.updatedBy", "username email role")
+        .populate("noc.appliedByAdmin", "username email role")
+        .populate("noc.generatedByAdmin", "username email role")
+        .populate("noc.bypassedBy", "username email role")
         .lean();
 
       if (!player) {
@@ -2536,7 +2539,7 @@ router.get("/extract/master", adminAuth, async (req, res) => {
           name: "SP Sports Academy",
           subtitle: "Official Player Dossier & Master Record Extract",
           address: "SP Sports Academy, Shakti Mandir Path, Dhanbad, Jharkhand 826007",
-          affiliation: "AKFI Compliance & Affiliated Standards (Amateur Kabaddi Federation of India)",
+          affiliation: "SP Sports Academy Central Registry & Administrative Standards",
           email: "spkabaddigroupdhanbad@gmail.com",
           website: "https://spkabaddi.me",
           extractedAt: new Date(),
@@ -2581,6 +2584,9 @@ router.get("/extract/master", adminAuth, async (req, res) => {
       .populate("idCardGeneratedBy", "username email role")
       .populate("attendance.markedByAdminId", "username email role")
       .populate("feePayments.updatedBy", "username email role")
+      .populate("noc.appliedByAdmin", "username email role")
+      .populate("noc.generatedByAdmin", "username email role")
+      .populate("noc.bypassedBy", "username email role")
       .sort({ registeredAt: -1 })
       .lean();
 
@@ -2589,6 +2595,9 @@ router.get("/extract/master", adminAuth, async (req, res) => {
     const approvedCount = await Registration.countDocuments({ status: "approved" });
     const pendingCount = await Registration.countDocuments({ status: "pending" });
     const rejectedCount = await Registration.countDocuments({ status: "rejected" });
+    const nocAppliedCount = await Registration.countDocuments({ "noc.status": "applied" });
+    const nocApprovedCount = await Registration.countDocuments({ "noc.status": "approved" });
+    const nocRelievedCount = await Registration.countDocuments({ "noc.status": "relieved" });
 
     return res.json({
       type: "master",
@@ -2596,7 +2605,7 @@ router.get("/extract/master", adminAuth, async (req, res) => {
         name: "SP Sports Academy",
         subtitle: "Academy Master Data Extraction Ledger",
         address: "SP Sports Academy, Shakti Mandir Path, Dhanbad, Jharkhand 826007",
-        affiliation: "AKFI Compliance & Affiliated Standards (Amateur Kabaddi Federation of India)",
+        affiliation: "SP Sports Academy Central Registry & Administrative Standards",
         email: "spkabaddigroupdhanbad@gmail.com",
         website: "https://spkabaddi.me",
         extractedAt: new Date(),
@@ -2607,6 +2616,9 @@ router.get("/extract/master", adminAuth, async (req, res) => {
         approved: approvedCount,
         pending: pendingCount,
         rejected: rejectedCount,
+        nocApplied: nocAppliedCount,
+        nocApproved: nocApprovedCount,
+        nocRelieved: nocRelievedCount,
       },
       matchedCount: players.length,
       players,
