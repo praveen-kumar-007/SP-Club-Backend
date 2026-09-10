@@ -34,11 +34,19 @@ const registrationSchema = new mongoose.Schema({
     enum: ["XS", "S", "M", "L", "XL", "XXL", "XXXL"],
     default: null,
   },
+  kitSizeSelectedAt: {
+    type: Date,
+    default: null,
+  },
   jerseyNumber: {
     type: Number,
     min: 1,
     max: 99,
     sparse: true,
+  },
+  jerseyAssignedAt: {
+    type: Date,
+    default: null,
   },
   message: { type: String },
   photo: { type: String, required: true },

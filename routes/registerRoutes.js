@@ -129,6 +129,7 @@ router.post(
         });
       }
 
+      const registrationDate = new Date();
       const newRegistration = new Registration({
         name,
         fathersName,
@@ -144,7 +145,10 @@ router.post(
         aadharNumber,
         clubDetails,
         kitSize,
+        kitSizeSelectedAt: kitSize ? registrationDate : null,
         jerseyNumber,
+        jerseyAssignedAt: jerseyNumber ? registrationDate : null,
+        registeredAt: registrationDate,
         message,
         photo: req.files.photo[0].path,
         aadharFront: req.files.aadharFront[0].path,

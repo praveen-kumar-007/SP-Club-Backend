@@ -547,9 +547,12 @@ router.get("/me", playerAuth, async (req, res) => {
         bloodGroup: player.bloodGroup || "",
         gender: player.gender || "",
         address: player.address || "",
-        clubDetails: player.clubDetails || "",
+        registeredAt: player.registeredAt,
+        idCardGeneratedAt: player.idCardGeneratedAt || player.registeredAt,
         kitSize: player.kitSize || "",
+        kitSizeSelectedAt: player.kitSizeSelectedAt,
         jerseyNumber: player.jerseyNumber || null,
+        jerseyAssignedAt: player.jerseyAssignedAt,
         status: player.status || "pending",
         feeAccessEnabled: Boolean(player.feeAccessEnabled),
         photo: player.photo || "",
@@ -574,12 +577,20 @@ router.put("/me", playerAuth, async (req, res) => {
     }
 
     if (kitSize !== undefined) {
-      player.kitSize = typeof kitSize === "string" ? kitSize.trim() || null : player.kitSize;
+      const nextKit =
+        typeof kitSize === "string" ? kitSize.trim() || null : player.kitSize;
+      if (nextKit !== player.kitSize) {
+        player.kitSize = nextKit;
+        player.kitSizeSelectedAt = nextKit
+          ? player.kitSizeSelectedAt || new Date()
+          : null;
+      }
     }
 
     if (jerseyNumber !== undefined) {
       if (jerseyNumber === null || jerseyNumber === "") {
         player.jerseyNumber = null;
+        player.jerseyAssignedAt = null;
       } else {
         const jersey = Number(jerseyNumber);
         if (!Number.isInteger(jersey) || jersey < 1 || jersey > 99) {
@@ -601,7 +612,10 @@ router.put("/me", playerAuth, async (req, res) => {
           });
         }
 
-        player.jerseyNumber = jersey;
+        if (player.jerseyNumber !== jersey) {
+          player.jerseyNumber = jersey;
+          player.jerseyAssignedAt = player.jerseyAssignedAt || new Date();
+        }
       }
     }
 
@@ -615,6 +629,8 @@ router.put("/me", playerAuth, async (req, res) => {
         email: player.email,
         role: player.role,
         idCardNumber: player.idCardNumber,
+        registeredAt: player.registeredAt,
+        idCardGeneratedAt: player.idCardGeneratedAt || player.registeredAt,
         phone: player.phone || "",
         parentsPhone: player.parentsPhone || "",
         aadharNumber: player.aadharNumber || "",
@@ -624,7 +640,9 @@ router.put("/me", playerAuth, async (req, res) => {
         address: player.address || "",
         clubDetails: player.clubDetails || "",
         kitSize: player.kitSize || "",
+        kitSizeSelectedAt: player.kitSizeSelectedAt,
         jerseyNumber: player.jerseyNumber || null,
+        jerseyAssignedAt: player.jerseyAssignedAt,
         status: player.status || "pending",
         photo: player.photo || "",
       },

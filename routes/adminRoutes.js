@@ -687,7 +687,8 @@ router.put(
 
           registration.idCardNumber = normalizedIdCardNumber;
           if (!registration.idCardGeneratedAt) {
-            registration.idCardGeneratedAt = new Date();
+            registration.idCardGeneratedAt =
+              registration.registeredAt || new Date();
           }
         }
       }
@@ -769,15 +770,22 @@ router.put(
       }
 
       if (kitSize !== undefined) {
-        registration.kitSize =
+        const nextKit =
           typeof kitSize === "string"
             ? kitSize.trim() || null
             : registration.kitSize;
+        if (nextKit !== registration.kitSize) {
+          registration.kitSize = nextKit;
+          registration.kitSizeSelectedAt = nextKit
+            ? registration.kitSizeSelectedAt || new Date()
+            : null;
+        }
       }
 
       if (jerseyNumber !== undefined) {
         if (jerseyNumber === null || jerseyNumber === "") {
           registration.jerseyNumber = null;
+          registration.jerseyAssignedAt = null;
         } else {
           const jersey = Number(jerseyNumber);
           if (!Number.isInteger(jersey) || jersey < 1 || jersey > 99) {
@@ -799,7 +807,11 @@ router.put(
             });
           }
 
-          registration.jerseyNumber = jersey;
+          if (registration.jerseyNumber !== jersey) {
+            registration.jerseyNumber = jersey;
+            registration.jerseyAssignedAt =
+              registration.jerseyAssignedAt || new Date();
+          }
         }
       }
 
@@ -1506,9 +1518,10 @@ router.post("/registrations/:id/generate-id", adminAuth, async (req, res) => {
       idCardNumber = await generateUniqueIdCardNumber();
     }
 
-    // Update registration with ID card details
+    // Update registration with ID card details (Generation date should match registration date)
     registration.idCardNumber = idCardNumber;
-    registration.idCardGeneratedAt = new Date();
+    registration.idCardGeneratedAt =
+      registration.registeredAt || new Date();
     registration.idCardGeneratedBy = req.adminId;
     // Store admin-assigned role for ID card, fallback to registration.role if not set
     registration.idCardRole =
@@ -1583,7 +1596,7 @@ router.get("/id-cards", adminAuth, async (req, res) => {
 router.get("/id-card-data/:id", async (req, res) => {
   try {
     const registration = await Registration.findById(req.params.id).select(
-      "name fathersName dob bloodGroup phone address photo idCardNumber idCardGeneratedAt idCardRole role",
+      "name fathersName dob bloodGroup phone address photo idCardNumber idCardGeneratedAt idCardRole role registeredAt",
     );
 
     if (!registration) {
@@ -1868,7 +1881,7 @@ router.get("/players", adminAuth, async (req, res) => {
 
     const players = await Registration.find(query)
       .select(
-        "_id name email phone role status idCardNumber attendance gender kitSize jerseyNumber clubDetails aadharNumber address feeAccessEnabled",
+        "_id name email phone role status idCardNumber idCardGeneratedAt registeredAt attendance gender kitSize kitSizeSelectedAt jerseyNumber jerseyAssignedAt clubDetails aadharNumber address feeAccessEnabled",
       )
       .sort({ name: 1 })
       .lean();
