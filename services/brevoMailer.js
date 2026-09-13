@@ -770,76 +770,103 @@ const sendNocGeneratedMail = async ({ registration, nocNumber, expiresAt, isBypa
 
 const buildProfessionalMapHtml = (clubPhonePrimary, clubPhoneSecondary) => {
   return `
-    <div style="background:#ffffff;border:2px solid #1e40af;border-radius:12px;overflow:hidden;margin:20px 0;box-shadow:0 4px 14px rgba(30,64,175,0.08);">
+    <div style="background:#ffffff;border:2px solid #1e40af;border-radius:12px;overflow:hidden;margin:22px 0;box-shadow:0 4px 16px rgba(30,64,175,0.10);max-width:100%;">
       <!-- Map Visual Header with SP Sports Academy indication -->
-      <div style="background:linear-gradient(135deg, #0d47a1 0%, #1976d2 100%);padding:14px 18px;color:#ffffff;">
-        <table width="100%" cellpadding="0" cellspacing="0">
+      <div style="background:linear-gradient(135deg, #0d47a1 0%, #1976d2 100%);padding:16px 20px;color:#ffffff;">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0">
           <tr>
             <td style="vertical-align:middle;">
-              <div style="font-size:15px;font-weight:700;letter-spacing:0.3px;">
+              <div style="font-size:16px;font-weight:800;letter-spacing:0.3px;color:#ffffff;">
                 📍 SP Sports Academy — Campus & Office Location
               </div>
-              <div style="font-size:12px;opacity:0.92;margin-top:2px;">
+              <div style="font-size:12px;color:#e0f2fe;margin-top:3px;font-weight:500;">
                 Shakti Mandir Path, Dhanbad, Jharkhand 826001
               </div>
             </td>
             <td align="right" style="vertical-align:middle;">
-              <span style="background:rgba(255,255,255,0.22);padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:0.5px;">
-                ACADEMY PIN ✓
+              <span style="background:rgba(255,255,255,0.24);color:#ffffff;padding:5px 12px;border-radius:20px;font-size:11px;font-weight:800;letter-spacing:0.5px;display:inline-block;white-space:nowrap;">
+                ACADEMY PINNED ✓
               </span>
             </td>
           </tr>
         </table>
       </div>
 
-      <!-- Map Visual Landmark Box with Coordinates -->
-      <div style="background:#f0f9ff;border-bottom:1px solid #bae6fd;padding:12px 18px;text-align:center;">
-        <div style="display:inline-block;background:#ffffff;border:1px solid #93c5fd;border-radius:8px;padding:8px 14px;box-shadow:0 2px 6px rgba(14,165,233,0.1);">
-          <span style="font-size:16px;vertical-align:middle;margin-right:6px;">🎯</span>
-          <strong style="color:#0369a1;font-size:13px;vertical-align:middle;">GPS Coordinates:</strong>
-          <span style="font-family:monospace;font-size:13px;font-weight:700;color:#0c4a6e;margin-left:4px;vertical-align:middle;">
-            ${SP_SPORTS_ACADEMY_LOCATION.latitude}° N, ${SP_SPORTS_ACADEMY_LOCATION.longitude}° E
-          </span>
-          <span style="color:#64748b;margin:0 6px;">•</span>
-          <strong style="color:#047857;font-size:12px;vertical-align:middle;">Plus Code:</strong>
-          <span style="font-family:monospace;font-size:12px;font-weight:700;color:#065f46;vertical-align:middle;"> ${SP_SPORTS_ACADEMY_LOCATION.plusCode}</span>
-        </div>
-      </div>
-
-      <!-- Address & Working Hours Table -->
-      <div style="padding:16px 18px;background:#ffffff;">
-        <table width="100%" cellpadding="4" cellspacing="0" style="font-size:13px;color:#334155;">
+      <!-- Visual Map Route Graphic Card (Visual representation, no raw coordinates) -->
+      <div style="background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:16px 20px;">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;border:1px solid #cbd5e1;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(15,23,42,0.06);">
           <tr>
-            <td width="34%" style="font-weight:700;color:#475569;">Academy Address:</td>
-            <td style="font-weight:600;color:#0f172a;">${SP_SPORTS_ACADEMY_LOCATION.address}</td>
-          </tr>
-          <tr>
-            <td style="font-weight:700;color:#475569;">Visiting Hours:</td>
-            <td style="color:#b45309;font-weight:700;">
-              02:00 PM – 08:00 PM everyday (2:00 PM to 8:00 PM daily)
+            <td style="background:#0f172a;padding:12px 16px;color:#ffffff;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="vertical-align:middle;">
+                    <span style="font-size:14px;font-weight:700;color:#facc15;">🗺️ Visual Map & Directions</span>
+                  </td>
+                  <td align="right" style="vertical-align:middle;">
+                    <span style="font-size:11px;color:#94a3b8;">Dhanbad, Jharkhand</span>
+                  </td>
+                </tr>
+              </table>
             </td>
           </tr>
           <tr>
-            <td style="font-weight:700;color:#475569;">Helpdesk Contact:</td>
+            <td style="padding:16px;background:linear-gradient(180deg,#f0f9ff 0%,#ffffff 100%);">
+              <table width="100%" cellpadding="6" cellspacing="0" border="0" style="font-size:13px;color:#1e293b;">
+                <tr>
+                  <td width="28" style="vertical-align:top;font-size:18px;">🏛️</td>
+                  <td>
+                    <strong style="color:#0f172a;font-size:13px;">Destination:</strong>
+                    <div style="color:#0369a1;font-weight:700;font-size:14px;">SP Sports Academy (Main Office)</div>
+                    <div style="color:#475569;font-size:12px;margin-top:2px;">Shakti Mandir Path, Dhanbad, Jharkhand 826001</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td width="28" style="vertical-align:top;font-size:18px;">⏰</td>
+                  <td>
+                    <strong style="color:#0f172a;font-size:13px;">Document Verification Hours:</strong>
+                    <div style="color:#b45309;font-weight:800;font-size:13px;">02:00 PM – 08:00 PM everyday (2:00 PM to 8:00 PM daily)</div>
+                    <div style="color:#64748b;font-size:11px;margin-top:1px;">Open all 7 days for verification & sports admission</div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- Address & Contact Info -->
+      <div style="padding:18px 20px;background:#ffffff;">
+        <table width="100%" cellpadding="5" cellspacing="0" border="0" style="font-size:13px;color:#334155;">
+          <tr>
+            <td width="36%" style="font-weight:700;color:#475569;">Helpdesk Assistance:</td>
             <td>
-              <a href="tel:${clubPhonePrimary}" style="color:#0d47a1;font-weight:700;text-decoration:none;">+91 ${clubPhonePrimary}</a> / 
+              <a href="tel:${clubPhonePrimary}" style="color:#0d47a1;font-weight:700;text-decoration:none;">+91 ${clubPhonePrimary}</a> &nbsp;|&nbsp; 
               <a href="tel:${clubPhoneSecondary}" style="color:#0d47a1;font-weight:700;text-decoration:none;">+91 ${clubPhoneSecondary}</a>
             </td>
           </tr>
           <tr>
             <td style="font-weight:700;color:#475569;">Official Email:</td>
-            <td><a href="mailto:${REPLY_TO_EMAIL}" style="color:#0d47a1;text-decoration:none;">${REPLY_TO_EMAIL}</a></td>
+            <td><a href="mailto:${REPLY_TO_EMAIL}" style="color:#0d47a1;font-weight:600;text-decoration:none;">${REPLY_TO_EMAIL}</a></td>
           </tr>
         </table>
 
-        <!-- Navigation Action Buttons -->
-        <div style="margin-top:14px;padding-top:12px;border-top:1px dashed #cbd5e1;">
-          <a href="${SP_SPORTS_ACADEMY_LOCATION.mapsDirectionsUrl}" target="_blank" rel="noreferrer" style="display:inline-block;background:linear-gradient(135deg,#0d47a1,#1565c0);color:#ffffff;text-decoration:none;padding:10px 18px;border-radius:8px;font-weight:700;font-size:12px;box-shadow:0 3px 10px rgba(13,71,161,0.25);margin-right:8px;margin-bottom:6px;">
-            🧭 Start Google Maps Navigation (${SP_SPORTS_ACADEMY_LOCATION.name})
-          </a>
-          <a href="${SP_SPORTS_ACADEMY_LOCATION.mapsSearchUrl}" target="_blank" rel="noreferrer" style="display:inline-block;background:#f8fafc;border:1px solid #94a3b8;color:#0f172a;text-decoration:none;padding:9px 15px;border-radius:8px;font-weight:700;font-size:12px;margin-bottom:6px;">
-            🗺️ View Campus Map
-          </a>
+        <!-- Navigation Action Buttons (Prominent options to go there) -->
+        <div style="margin-top:16px;padding-top:14px;border-top:1px dashed #cbd5e1;">
+          <table cellpadding="0" cellspacing="0" border="0" style="width:100%;">
+            <tr>
+              <td>
+                <a href="${SP_SPORTS_ACADEMY_LOCATION.mapsDirectionsUrl}" target="_blank" rel="noreferrer" style="display:inline-block;background:linear-gradient(135deg,#0d47a1 0%,#1565c0 100%);color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:800;font-size:13px;box-shadow:0 3px 10px rgba(13,71,161,0.25);margin-right:10px;margin-bottom:8px;text-align:center;">
+                  🧭 Get Directions (Google Maps Navigation)
+                </a>
+                <a href="${SP_SPORTS_ACADEMY_LOCATION.mapsSearchUrl}" target="_blank" rel="noreferrer" style="display:inline-block;background:#f8fafc;border:1px solid #94a3b8;color:#0f172a;text-decoration:none;padding:11px 18px;border-radius:8px;font-weight:700;font-size:13px;margin-bottom:8px;text-align:center;">
+                  🗺️ Open in Google Maps
+                </a>
+              </td>
+            </tr>
+          </table>
+          <div style="font-size:11px;color:#64748b;margin-top:4px;">
+            Tap "Get Directions" above on your mobile phone to start live navigation directly to SP Sports Academy.
+          </div>
         </div>
       </div>
     </div>
