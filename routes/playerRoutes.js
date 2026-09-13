@@ -1010,7 +1010,7 @@ router.get("/noc/certificate", playerAuth, async (req, res) => {
         isBypassed: Boolean(player.noc.isBypassed),
         institution: {
           name: "SP SPORTS ACADEMY",
-          address: "Shakti Mandir Path, Dhanbad, Jharkhand 826007",
+          address: "Shakti Mandir Path, Dhanbad, Jharkhand 826001",
           affiliation: "AKFI Standards Compliant (Amateur Kabaddi Federation of India)",
           contactEmail: "spkabaddigroupdhanbad@gmail.com",
           contactPhone: "+91 8271882034",

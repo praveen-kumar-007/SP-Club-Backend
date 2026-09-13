@@ -2701,7 +2701,7 @@ router.get("/extract/master", adminAuth, async (req, res) => {
         academy: {
           name: "SP Sports Academy",
           subtitle: "Official Player Dossier & Master Record Extract",
-          address: "SP Sports Academy, Shakti Mandir Path, Dhanbad, Jharkhand 826007",
+          address: "SP Sports Academy, Shakti Mandir Path, Dhanbad, Jharkhand 826001",
           affiliation: "SP Sports Academy Central Registry & Administrative Standards",
           email: "spkabaddigroupdhanbad@gmail.com",
           website: "https://spkabaddi.me",
@@ -2767,7 +2767,7 @@ router.get("/extract/master", adminAuth, async (req, res) => {
       academy: {
         name: "SP Sports Academy",
         subtitle: "Academy Master Data Extraction Ledger",
-        address: "SP Sports Academy, Shakti Mandir Path, Dhanbad, Jharkhand 826007",
+        address: "SP Sports Academy, Shakti Mandir Path, Dhanbad, Jharkhand 826001",
         affiliation: "SP Sports Academy Central Registry & Administrative Standards",
         email: "spkabaddigroupdhanbad@gmail.com",
         website: "https://spkabaddi.me",
@@ -3099,7 +3099,7 @@ router.get("/registrations/:id/noc/certificate", adminAuth, async (req, res) => 
         isBypassed: Boolean(player.noc.isBypassed),
         institution: {
           name: "SP SPORTS ACADEMY",
-          address: "Shakti Mandir Path, Dhanbad, Jharkhand 826007",
+          address: "Shakti Mandir Path, Dhanbad, Jharkhand 826001",
           affiliation: "AKFI Standards Compliant (Amateur Kabaddi Federation of India)",
           contactEmail: "spkabaddigroupdhanbad@gmail.com",
           contactPhone: "+91 8271882034",

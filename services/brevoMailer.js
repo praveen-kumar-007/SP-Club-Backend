@@ -10,7 +10,7 @@ const PAPPU_CC_NAME = "Pappu Kumar";
 
 const SP_SPORTS_ACADEMY_LOCATION = {
   name: "SP Sports Academy",
-  address: "SP Sports Academy, Shakti Mandir Path, Dhanbad, Jharkhand 826007",
+  address: "SP Sports Academy, Shakti Mandir Path, Dhanbad, Jharkhand 826001",
   latitude: 23.7811364,
   longitude: 86.4234188,
   plusCode: "QCJF+F93 Dhanbad, Jharkhand",
@@ -767,7 +767,7 @@ const buildProfessionalMapHtml = (clubPhonePrimary, clubPhoneSecondary) => {
                 📍 SP Sports Academy — Campus & Office Location
               </div>
               <div style="font-size:12px;opacity:0.92;margin-top:2px;">
-                Shakti Mandir Path, Dhanbad, Jharkhand 826007
+                Shakti Mandir Path, Dhanbad, Jharkhand 826001
               </div>
             </td>
             <td align="right" style="vertical-align:middle;">
