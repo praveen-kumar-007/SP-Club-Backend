@@ -593,14 +593,7 @@ const sendBirthdayFollowupMail = async (players, options = {}) => {
 
   if (!players || players.length === 0) return { skipped: true, reason: "no-players" };
 
-  const isTemporary = Boolean(options.isTemporary);
   const istTodayFormatted = formatISTDate(options.targetDate || new Date());
-
-  const tempBanner = isTemporary
-    ? `<div style="background:#fef3c7;border:1px dashed #d97706;border-radius:6px;padding:8px 12px;margin-bottom:14px;color:#92400e;font-size:12px;font-weight:700;">
-        ⚠️ TEST NOTICE: This is a test / simulation dispatch for birthday follow-up.
-      </div>`
-    : "";
 
   let playersListHtml = players.map(p => `
     <li style="margin-bottom: 12px; padding: 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
@@ -617,7 +610,6 @@ const sendBirthdayFollowupMail = async (players, options = {}) => {
     title: `Player Birthdays Today 🎂 (${istTodayFormatted})`,
     subtitle: `Official IST Birthday Alert • ${players.length} Player(s)`,
     contentHtml: `
-      ${tempBanner}
       <p>Hello Academy Administration,</p>
       <p>The following player(s) have their birthday today according to Indian Standard Time (IST — <strong>${istTodayFormatted}</strong>):</p>
       <ul style="padding-left: 0; list-style: none;">
@@ -633,7 +625,7 @@ const sendBirthdayFollowupMail = async (players, options = {}) => {
   ];
 
   const toList = options.customToEmail
-    ? [{ email: options.customToEmail.trim(), name: "Admin (Test)" }]
+    ? [{ email: options.customToEmail.trim(), name: "Admin" }]
     : defaultRecipients;
 
   const recipientEmails = toList.map(r => r.email);
@@ -871,13 +863,12 @@ const sendPendingVerificationReminderMail = async (
   const websiteUrl = `${frontendUrl}/`;
   const contactUrl = `${frontendUrl}/contact`;
 
-  const isTemporary = Boolean(options.isTemporary);
   const regId =
-    options.tempRegId ||
     options.regId ||
+    options.tempRegId ||
     (registration._id
-      ? `${isTemporary ? "TEMP-" : ""}SP-REG-${String(registration._id).slice(-6).toUpperCase()}`
-      : "TEMP-SP-APPLICANT");
+      ? `SP-REG-${String(registration._id).slice(-6).toUpperCase()}`
+      : "SP-REG-104829");
   const daysElapsed = Number(options.daysElapsed) || 0;
   const daysRemaining = Math.max(0, 30 - daysElapsed);
   const regDateFormatted = formatISTDate(registration.registeredAt || new Date());
@@ -900,17 +891,10 @@ const sendPendingVerificationReminderMail = async (
       ? ` (${registration.kabaddiPositions.join(", ")})`
       : "";
 
-  const tempBanner = isTemporary
-    ? `<div style="background:#fef3c7;border:1px dashed #d97706;border-radius:6px;padding:8px 12px;margin-bottom:14px;color:#92400e;font-size:12px;font-weight:700;">
-        ⚠️ TEST NOTICE: This is a test / simulation dispatch. Registration number (${regId}) is temporary.
-      </div>`
-    : "";
-
   const html = buildEmailTemplate({
     title: "Action Required: Document Verification & Academy Visit",
     subtitle: `Notice #${options.reminderCount || 1} • Day ${daysElapsed} of 30-Day Mandatory Verification Period`,
     contentHtml: `
-      ${tempBanner}
       <p>Dear <strong>${registration.name || "Applicant"}</strong>,</p>
       <p>Thank you for submitting your registration with <strong>SP Sports Academy</strong>. Your application is currently recorded under <strong>Pending Verification</strong> status.</p>
       
@@ -1039,13 +1023,12 @@ const sendApplicationRejectedMail = async (
   ).replace(/\/+$/, "");
   const websiteUrl = `${frontendUrl}/`;
 
-  const isTemporary = Boolean(options.isTemporary);
   const regId =
-    options.tempRegId ||
     options.regId ||
+    options.tempRegId ||
     (registration._id
-      ? `${isTemporary ? "TEMP-" : ""}SP-REG-${String(registration._id).slice(-6).toUpperCase()}`
-      : "TEMP-SP-APPLICANT");
+      ? `SP-REG-${String(registration._id).slice(-6).toUpperCase()}`
+      : "SP-REG-104829");
   const regDateFormatted = formatISTDate(registration.registeredAt || new Date());
   const rejectionDateFormatted = formatISTDate(
     registration.rejectedAt || new Date(),
@@ -1058,17 +1041,10 @@ const sendApplicationRejectedMail = async (
     registration.rejectionReason ||
     "Application rejected due to not taking necessary action within the 30-day verification window (in-person document verification not completed).";
 
-  const tempBanner = isTemporary
-    ? `<div style="background:#fef3c7;border:1px dashed #d97706;border-radius:6px;padding:8px 12px;margin-bottom:14px;color:#92400e;font-size:12px;font-weight:700;">
-        ⚠️ TEST NOTICE: This is a test / simulation dispatch. Registration number (${regId}) is temporary.
-      </div>`
-    : "";
-
   const html = buildEmailTemplate({
     title: "Application Status Update: Application Rejected",
     subtitle: "Official notice regarding your SP Sports Academy registration",
     contentHtml: `
-      ${tempBanner}
       <p>Dear <strong>${registration.name || "Applicant"}</strong>,</p>
       <p>We are writing to communicate the official status update regarding your registration application at <strong>SP Sports Academy</strong>.</p>
       

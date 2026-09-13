@@ -1298,21 +1298,20 @@ router.post("/mail/test-send", adminAuth, async (req, res) => {
       }
     }
 
-    const effectiveTempId =
+    const effectiveRegId =
       tempRegId ||
-      (isTemporary
-        ? `TEMP-SP-${Math.floor(100000 + Math.random() * 900000)}`
-        : targetRegistration._id
-          ? `SP-REG-${String(targetRegistration._id).slice(-6).toUpperCase()}`
-          : `TEMP-SP-DEMO`);
+      targetRegistration.idCardNumber ||
+      (targetRegistration._id
+        ? `SP-REG-${String(targetRegistration._id).slice(-6).toUpperCase()}`
+        : `SP-REG-${Math.floor(100000 + Math.random() * 900000)}`);
 
     const regData = {
       _id: targetRegistration._id || null,
-      name: candidate.name || targetRegistration.name || "Test Player",
+      name: candidate.name || targetRegistration.name || "Applicant",
       fathersName:
         candidate.fathersName ||
         targetRegistration.fathersName ||
-        "Candidate Father",
+        "N/A",
       email: recipientEmail.trim(),
       phone: candidate.phone || targetRegistration.phone || "9876543210",
       role: candidate.role || targetRegistration.role || "Kabaddi Player",
@@ -1333,8 +1332,7 @@ router.post("/mail/test-send", adminAuth, async (req, res) => {
     switch (mailType) {
       case "pending_reminder":
         result = await sendPendingVerificationReminderMail(regData, {
-          isTemporary,
-          tempRegId: effectiveTempId,
+          regId: effectiveRegId,
           daysElapsed: Number(daysElapsed) || 6,
           documents:
             Array.isArray(documents) && documents.length > 0
@@ -1350,8 +1348,7 @@ router.post("/mail/test-send", adminAuth, async (req, res) => {
           customReason ||
             "Application rejected due to not taking necessary action within the 30-day verification window (in-person document verification not completed).",
           {
-            isTemporary,
-            tempRegId: effectiveTempId,
+            regId: effectiveRegId,
           },
         );
         break;
@@ -1394,16 +1391,16 @@ router.post("/mail/test-send", adminAuth, async (req, res) => {
     }
 
     return res.json({
-      message: `Test email (${mailType}) sent successfully to ${recipientEmail.trim()}`,
+      message: `Template email (${mailType}) sent successfully to ${recipientEmail.trim()}`,
       mailType,
       recipientEmail: recipientEmail.trim(),
-      tempRegId: effectiveTempId,
+      regId: effectiveRegId,
       result,
     });
   } catch (error) {
-    console.error("❌ Error sending test email:", error);
+    console.error("❌ Error sending template email:", error);
     return res.status(500).json({
-      message: "Failed to send test email",
+      message: "Failed to send template email",
       error: error.message || String(error),
     });
   }
