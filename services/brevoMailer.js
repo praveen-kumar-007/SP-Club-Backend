@@ -792,43 +792,38 @@ const buildProfessionalMapHtml = (clubPhonePrimary, clubPhoneSecondary) => {
         </table>
       </div>
 
-      <!-- Visual Map Route Graphic Card (Visual representation, no raw coordinates) -->
-      <div style="background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:16px 20px;">
-        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;border:1px solid #cbd5e1;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(15,23,42,0.06);">
+      <!-- Visual Map Real Image Preview (Interactive Link to Google Maps) -->
+      <div style="background:#0f172a;line-height:0;text-align:center;">
+        <a href="${SP_SPORTS_ACADEMY_LOCATION.mapsDirectionsUrl}" target="_blank" rel="noreferrer" style="display:block;text-decoration:none;border:0;">
+          <img
+            src="https://res.cloudinary.com/dmmll82la/image/upload/v1789281698/sp_sports_academy_map.jpg"
+            alt="SP Sports Academy Visual Location Map - Shakti Mandir Path, Dhanbad"
+            width="600"
+            style="width:100%;max-width:600px;height:auto;display:block;margin:0 auto;border:0;"
+          />
+        </a>
+      </div>
+      <div style="background:#0f172a;color:#facc15;padding:8px 16px;font-size:11px;font-weight:700;text-align:center;letter-spacing:0.3px;">
+        👆 Tap the map image above to start live GPS directions in Google Maps
+      </div>
+
+      <!-- Campus Location & Visiting Details -->
+      <div style="background:#f8fafc;border-bottom:1px solid #e2e8f0;padding:14px 18px;">
+        <table width="100%" cellpadding="6" cellspacing="0" border="0" style="font-size:13px;color:#1e293b;">
           <tr>
-            <td style="background:#0f172a;padding:12px 16px;color:#ffffff;">
-              <table width="100%" cellpadding="0" cellspacing="0" border="0">
-                <tr>
-                  <td style="vertical-align:middle;">
-                    <span style="font-size:14px;font-weight:700;color:#facc15;">🗺️ Visual Map & Directions</span>
-                  </td>
-                  <td align="right" style="vertical-align:middle;">
-                    <span style="font-size:11px;color:#94a3b8;">Dhanbad, Jharkhand</span>
-                  </td>
-                </tr>
-              </table>
+            <td width="28" style="vertical-align:top;font-size:18px;">🏛️</td>
+            <td>
+              <strong style="color:#0f172a;font-size:13px;">Academy Campus:</strong>
+              <div style="color:#0369a1;font-weight:700;font-size:14px;">SP Sports Academy (Main Office)</div>
+              <div style="color:#475569;font-size:12px;margin-top:2px;">Shakti Mandir Path, Dhanbad, Jharkhand 826001</div>
             </td>
           </tr>
           <tr>
-            <td style="padding:16px;background:linear-gradient(180deg,#f0f9ff 0%,#ffffff 100%);">
-              <table width="100%" cellpadding="6" cellspacing="0" border="0" style="font-size:13px;color:#1e293b;">
-                <tr>
-                  <td width="28" style="vertical-align:top;font-size:18px;">🏛️</td>
-                  <td>
-                    <strong style="color:#0f172a;font-size:13px;">Destination:</strong>
-                    <div style="color:#0369a1;font-weight:700;font-size:14px;">SP Sports Academy (Main Office)</div>
-                    <div style="color:#475569;font-size:12px;margin-top:2px;">Shakti Mandir Path, Dhanbad, Jharkhand 826001</div>
-                  </td>
-                </tr>
-                <tr>
-                  <td width="28" style="vertical-align:top;font-size:18px;">⏰</td>
-                  <td>
-                    <strong style="color:#0f172a;font-size:13px;">Document Verification Hours:</strong>
-                    <div style="color:#b45309;font-weight:800;font-size:13px;">02:00 PM – 08:00 PM everyday (2:00 PM to 8:00 PM daily)</div>
-                    <div style="color:#64748b;font-size:11px;margin-top:1px;">Open all 7 days for verification & sports admission</div>
-                  </td>
-                </tr>
-              </table>
+            <td width="28" style="vertical-align:top;font-size:18px;">⏰</td>
+            <td>
+              <strong style="color:#0f172a;font-size:13px;">Visiting & Verification Hours:</strong>
+              <div style="color:#b45309;font-weight:800;font-size:13px;">02:00 PM – 08:00 PM everyday (2:00 PM to 8:00 PM daily)</div>
+              <div style="color:#64748b;font-size:11px;margin-top:1px;">Open all 7 days for verification & sports admission</div>
             </td>
           </tr>
         </table>
