@@ -20,10 +20,14 @@ const {
   sendApplicationRejectedMail,
   sendPendingVerificationReminderMail,
   sendApplicationProcessingMail,
+  sendBirthdayFollowupMail,
 } = require("../services/brevoMailer");
 const {
   processPendingRegistrations,
 } = require("../services/pendingVerificationService");
+const {
+  checkAndSendBirthdayFollowups,
+} = require("../services/birthdayService");
 const { adminAuth, checkPermission } = require("../middleware/adminAuth");
 
 const ADMIN_JWT_SECRET =
@@ -1242,6 +1246,23 @@ router.post("/process-pending-verifications", adminAuth, async (req, res) => {
   }
 });
 
+// POST /api/admin/mail/process-birthdays - Trigger birthday follow-up sweep in Indian Standard Time (IST)
+router.post("/mail/process-birthdays", adminAuth, async (req, res) => {
+  try {
+    const summary = await checkAndSendBirthdayFollowups(new Date());
+    return res.json({
+      message: "Birthday check completed in Indian Standard Time (IST)",
+      summary,
+    });
+  } catch (error) {
+    console.error("❌ Error executing manual birthday check:", error);
+    return res.status(500).json({
+      message: "Failed to process birthday followups",
+      error: error.message,
+    });
+  }
+});
+
 // POST /api/admin/mail/test-send - Test/simulate and send any system email template with custom or player inputs
 router.post("/mail/test-send", adminAuth, async (req, res) => {
   try {
@@ -1345,9 +1366,30 @@ router.post("/mail/test-send", adminAuth, async (req, res) => {
         });
         break;
 
+      case "birthday":
+        result = await sendBirthdayFollowupMail(
+          [
+            {
+              _id: regData._id,
+              name: regData.name,
+              dob: candidate.dob || targetRegistration.dob || new Date(),
+              email: regData.email,
+              phone: regData.phone,
+              role: regData.role,
+              clubDetails: regData.clubDetails || "SP Sports Academy",
+            },
+          ],
+          {
+            isTemporary,
+            customToEmail: recipientEmail.trim(),
+            targetDate: new Date(),
+          },
+        );
+        break;
+
       default:
         return res.status(400).json({
-          message: `Unknown mailType "${mailType}". Valid types are: pending_reminder, rejection, processing, approved`,
+          message: `Unknown mailType "${mailType}". Valid types are: pending_reminder, rejection, processing, approved, birthday`,
         });
     }
 

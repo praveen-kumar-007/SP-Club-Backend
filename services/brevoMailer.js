@@ -587,45 +587,66 @@ const sendCustomAdminMail = async ({
   });
 };
 
-const sendBirthdayFollowupMail = async (players) => {
+const sendBirthdayFollowupMail = async (players, options = {}) => {
   const enabled = await isMailEnabled();
   if (!enabled) return { skipped: true, reason: "disabled" };
 
   if (!players || players.length === 0) return { skipped: true, reason: "no-players" };
 
+  const isTemporary = Boolean(options.isTemporary);
+  const istTodayFormatted = formatISTDate(options.targetDate || new Date());
+
+  const tempBanner = isTemporary
+    ? `<div style="background:#fef3c7;border:1px dashed #d97706;border-radius:6px;padding:8px 12px;margin-bottom:14px;color:#92400e;font-size:12px;font-weight:700;">
+        ⚠️ TEST NOTICE: This is a test / simulation dispatch for birthday follow-up.
+      </div>`
+    : "";
+
   let playersListHtml = players.map(p => `
-    <li style="margin-bottom: 10px;">
-      <strong>Name:</strong> ${p.name || 'N/A'}<br/>
-      <strong>DOB:</strong> ${formatISTDate(p.dob)}<br/>
+    <li style="margin-bottom: 12px; padding: 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
+      <strong style="color: #0f172a; font-size: 15px;">${p.name || 'N/A'}</strong><br/>
+      <span style="color: #0d47a1; font-weight: 700;">🎂 Date of Birth (IST):</span> ${formatISTDate(p.dob)}<br/>
       <strong>Email:</strong> ${p.email || 'N/A'}<br/>
       <strong>Phone:</strong> ${p.phone || 'N/A'}<br/>
-      <strong>Role:</strong> ${p.role || 'N/A'}<br/>
-      <strong>Club:</strong> ${p.clubDetails || 'N/A'}
+      <strong>Role / Position:</strong> ${p.role || 'Player'}<br/>
+      <strong>Club / Details:</strong> ${p.clubDetails || 'SP Sports Academy'}
     </li>
   `).join('');
 
   const html = buildEmailTemplate({
-    title: "Player Birthdays Today 🎂",
-    subtitle: "Follow-up for players having their birthday today",
+    title: `Player Birthdays Today 🎂 (${istTodayFormatted})`,
+    subtitle: `Official IST Birthday Alert • ${players.length} Player(s)`,
     contentHtml: `
-      <p>Hello Admin,</p>
-      <p>The following players have their birthday today:</p>
-      <ul style="padding-left: 20px;">
+      ${tempBanner}
+      <p>Hello Academy Administration,</p>
+      <p>The following player(s) have their birthday today according to Indian Standard Time (IST — <strong>${istTodayFormatted}</strong>):</p>
+      <ul style="padding-left: 0; list-style: none;">
         ${playersListHtml}
       </ul>
-      <p>Please send them your best wishes!</p>
+      <p style="margin-top: 16px;">Please extend warm birthday wishes on behalf of SP Sports Academy!</p>
     `,
   });
 
+  const defaultRecipients = [
+    { email: PAPPU_CC_EMAIL, name: PAPPU_CC_NAME },
+    { email: "praveen.pr105@gmail.com", name: "Praveen" }
+  ];
+
+  const toList = options.customToEmail
+    ? [{ email: options.customToEmail.trim(), name: "Admin (Test)" }]
+    : defaultRecipients;
+
+  const recipientEmails = toList.map(r => r.email);
+  const cc = getSafetyCc(recipientEmails);
+  const bcc = getImportantBcc(recipientEmails, cc);
+
   return sendBrevoEmail({
-    to: [
-      { email: "praveen.pr105@gmail.com", name: "Praveen" },
-      { email: "pappukrpappu.1234@gmail.com", name: "Pappu" }
-    ],
-    cc: getSafetyCc(["praveen.pr105@gmail.com", "pappukrpappu.1234@gmail.com"]),
-    subject: "Player Birthdays Today 🎂 - SP Sports Academy",
+    to: toList,
+    cc: cc.length > 0 ? cc : undefined,
+    bcc: bcc.length > 0 ? bcc : undefined,
+    subject: `Player Birthdays Today 🎂 (${istTodayFormatted}) - SP Sports Academy`,
     htmlContent: html,
-    textContent: `Birthdays today: ${players.map(p => p.name).join(', ')}`,
+    textContent: `Player Birthdays Today (${istTodayFormatted}): ${players.map(p => `${p.name} (DOB: ${formatISTDate(p.dob)})`).join(', ')}`,
   });
 };
 

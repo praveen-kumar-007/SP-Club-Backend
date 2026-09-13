@@ -128,45 +128,27 @@ function startKeepAlivePing() {
 }
 
 /* ----------------------------------------------------
-   BIRTHDAY CRON JOB (EVERY DAY AT 8:00 AM)
+   BIRTHDAY CRON JOB (EVERY DAY AT 8:00 AM IST)
+   Strict Indian Standard Time (Asia/Kolkata) Matching
 ---------------------------------------------------- */
 
-const Registration = require("./models/registration");
-const { sendBirthdayFollowupMail } = require("./services/brevoMailer");
+const { checkAndSendBirthdayFollowups } = require("./services/birthdayService");
 
 function startBirthdayCron() {
-  cron.schedule("0 8 * * *", async () => {
-    try {
-      console.log("Cron job running: Checking for player birthdays...");
-      const today = new Date();
-      const month = today.getMonth() + 1;
-      const day = today.getDate();
-
-      const birthdayPlayers = await Registration.aggregate([
-        {
-          $match: {
-            $expr: {
-              $and: [
-                { $eq: [{ $month: "$dob" }, month] },
-                { $eq: [{ $dayOfMonth: "$dob" }, day] }
-              ]
-            }
-          }
-        }
-      ]);
-
-      if (birthdayPlayers && birthdayPlayers.length > 0) {
-        console.log(`Found ${birthdayPlayers.length} birthdays today. Sending email...`);
-        await sendBirthdayFollowupMail(birthdayPlayers);
-      } else {
-        console.log("No birthdays today.");
+  cron.schedule(
+    "0 8 * * *",
+    async () => {
+      try {
+        console.log("Cron job running: Checking for player birthdays in IST...");
+        await checkAndSendBirthdayFollowups(new Date());
+      } catch (err) {
+        console.error("Error in birthday cron job:", err);
       }
-    } catch (err) {
-      console.error("Error in birthday cron job:", err);
-    }
-  }, {
-    timezone: "Asia/Kolkata"
-  });
+    },
+    {
+      timezone: "Asia/Kolkata",
+    },
+  );
 }
 
 startBirthdayCron();
