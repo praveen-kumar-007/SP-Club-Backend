@@ -17,7 +17,13 @@ const {
   sendAdminPasswordOtpMail,
   sendNocInitiatedMail,
   sendNocGeneratedMail,
+  sendApplicationRejectedMail,
+  sendPendingVerificationReminderMail,
+  sendApplicationProcessingMail,
 } = require("../services/brevoMailer");
+const {
+  processPendingRegistrations,
+} = require("../services/pendingVerificationService");
 const { adminAuth, checkPermission } = require("../middleware/adminAuth");
 
 const ADMIN_JWT_SECRET =
@@ -1184,6 +1190,14 @@ router.delete("/registrations/:id/reject", adminAuth, async (req, res) => {
 
     console.log("Registration marked as rejected (stored in database)");
 
+    // Send formal rejection mail asynchronously
+    sendApplicationRejectedMail(registration, reason).catch((mailError) => {
+      console.error(
+        "Rejection email send failed:",
+        mailError?.message || mailError,
+      );
+    });
+
     res.json({
       message: "Registration rejected successfully",
       registration: {
@@ -1201,6 +1215,155 @@ router.delete("/registrations/:id/reject", adminAuth, async (req, res) => {
     res
       .status(500)
       .json({ message: "Error rejecting registration", error: error.message });
+  }
+});
+
+// POST /api/admin/process-pending-verifications - Trigger pending document verification check & 30-day auto-rejections manually
+router.post("/process-pending-verifications", adminAuth, async (req, res) => {
+  try {
+    console.log(
+      "🔄 Manual trigger of pending verification & auto-rejection sweep initiated by admin:",
+      req.adminId,
+    );
+    const summary = await processPendingRegistrations();
+    return res.json({
+      message: "Pending verification sweep completed successfully",
+      summary,
+    });
+  } catch (error) {
+    console.error(
+      "❌ Error executing manual pending verification check:",
+      error,
+    );
+    return res.status(500).json({
+      message: "Failed to process pending verifications",
+      error: error.message,
+    });
+  }
+});
+
+// POST /api/admin/mail/test-send - Test/simulate and send any system email template with custom or player inputs
+router.post("/mail/test-send", adminAuth, async (req, res) => {
+  try {
+    const {
+      mailType,
+      recipientEmail,
+      candidate = {},
+      playerId,
+      customReason,
+      documents,
+      tempRegId,
+      isTemporary = true,
+      daysElapsed = 6,
+    } = req.body;
+
+    if (!recipientEmail || !recipientEmail.trim()) {
+      return res.status(400).json({ message: "Recipient email is required" });
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(recipientEmail.trim())) {
+      return res
+        .status(400)
+        .json({ message: "Invalid recipient email address" });
+    }
+
+    let targetRegistration = {};
+
+    if (playerId) {
+      const existing = await Registration.findById(playerId).lean();
+      if (existing) {
+        targetRegistration = { ...existing };
+      }
+    }
+
+    const effectiveTempId =
+      tempRegId ||
+      (isTemporary
+        ? `TEMP-SP-${Math.floor(100000 + Math.random() * 900000)}`
+        : targetRegistration._id
+          ? `SP-REG-${String(targetRegistration._id).slice(-6).toUpperCase()}`
+          : `TEMP-SP-DEMO`);
+
+    const regData = {
+      _id: targetRegistration._id || null,
+      name: candidate.name || targetRegistration.name || "Test Player",
+      fathersName:
+        candidate.fathersName ||
+        targetRegistration.fathersName ||
+        "Candidate Father",
+      email: recipientEmail.trim(),
+      phone: candidate.phone || targetRegistration.phone || "9876543210",
+      role: candidate.role || targetRegistration.role || "Kabaddi Player",
+      kabaddiPositions:
+        candidate.kabaddiPositions ||
+        targetRegistration.kabaddiPositions || ["Raider"],
+      registeredAt:
+        candidate.registeredAt ||
+        targetRegistration.registeredAt ||
+        new Date(),
+      status: targetRegistration.status || "pending",
+      rejectionReason: customReason || targetRegistration.rejectionReason,
+      rejectedAt: targetRegistration.rejectedAt || new Date(),
+    };
+
+    let result = null;
+
+    switch (mailType) {
+      case "pending_reminder":
+        result = await sendPendingVerificationReminderMail(regData, {
+          isTemporary,
+          tempRegId: effectiveTempId,
+          daysElapsed: Number(daysElapsed) || 6,
+          documents:
+            Array.isArray(documents) && documents.length > 0
+              ? documents
+              : undefined,
+          reminderCount: Math.ceil((Number(daysElapsed) || 6) / 3),
+        });
+        break;
+
+      case "rejection":
+        result = await sendApplicationRejectedMail(
+          regData,
+          customReason ||
+            "Application rejected due to not taking necessary action within the 30-day verification window (in-person document verification not completed).",
+          {
+            isTemporary,
+            tempRegId: effectiveTempId,
+          },
+        );
+        break;
+
+      case "processing":
+        result = await sendApplicationProcessingMail(regData);
+        break;
+
+      case "approved":
+        result = await sendApprovalMail(regData, {
+          initialPassword: candidate.phone || regData.phone || "123456",
+        });
+        break;
+
+      default:
+        return res.status(400).json({
+          message: `Unknown mailType "${mailType}". Valid types are: pending_reminder, rejection, processing, approved`,
+        });
+    }
+
+    return res.json({
+      message: `Test email (${mailType}) sent successfully to ${recipientEmail.trim()}`,
+      mailType,
+      recipientEmail: recipientEmail.trim(),
+      tempRegId: effectiveTempId,
+      result,
+    });
+  } catch (error) {
+    console.error("❌ Error sending test email:", error);
+    return res.status(500).json({
+      message: "Failed to send test email",
+      error: error.message || String(error),
+    });
   }
 });
 
@@ -2206,7 +2369,7 @@ router.get("/attendance/:playerId", adminAuth, async (req, res) => {
 
     const [player, practiceDates] = await Promise.all([
       Registration.findById(req.params.playerId).select(
-      "_id name email role idCardNumber attendance status",
+        "_id name email role idCardNumber attendance status",
       ),
       getPracticeDatesForMonth(bounds),
     ]);

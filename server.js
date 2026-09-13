@@ -198,6 +198,42 @@ function startNocCron() {
 startNocCron();
 
 /* ----------------------------------------------------
+   PENDING VERIFICATION CRON JOB
+   - Sends verification reminder every 3 days to pending candidates
+   - Auto-rejects candidates and sends rejection email after 30 days
+   - Runs daily at 09:00 AM IST + once upon startup
+---------------------------------------------------- */
+
+const {
+  processPendingRegistrations,
+} = require("./services/pendingVerificationService");
+
+function startPendingVerificationCron() {
+  // Daily schedule at 9:00 AM IST
+  cron.schedule(
+    "0 9 * * *",
+    async () => {
+      try {
+        console.log(
+          "Cron job running: Processing pending applicant document verification reminders & 30-day auto-rejections...",
+        );
+        await processPendingRegistrations();
+      } catch (err) {
+        console.error(
+          "Error in pending verification scheduled cron job:",
+          err,
+        );
+      }
+    },
+    {
+      timezone: "Asia/Kolkata",
+    },
+  );
+}
+
+startPendingVerificationCron();
+
+/* ----------------------------------------------------
    🔴 GLOBAL ERROR HANDLER (CRITICAL FIX)
    Catches Multer / Cloudinary / Validation errors
 ---------------------------------------------------- */
@@ -250,6 +286,13 @@ mongoose
       console.log(`Server running on port ${PORT}`);
       console.log(`Backend accessible at http://localhost:${PORT}`);
       startKeepAlivePing();
+
+      // Safe initial run of pending verification flow (after 10s delay to allow server warm-up)
+      setTimeout(() => {
+        processPendingRegistrations().catch((err) =>
+          console.error("Initial pending verification check error:", err),
+        );
+      }, 10000);
     });
   })
   .catch((err) => {

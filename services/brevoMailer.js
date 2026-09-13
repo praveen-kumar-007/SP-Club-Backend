@@ -7,8 +7,18 @@ const SAFETY_ARCHIVE_CC_EMAIL = "spkabaddigroupdhanbad@gmail.com";
 const SAFETY_ARCHIVE_CC_NAME = "SP Sports Academy Archive";
 const PAPPU_CC_EMAIL = "pappukrpappu.1234@gmail.com";
 const PAPPU_CC_NAME = "Pappu Kumar";
-const PRAVEEN_BCC_EMAIL = "praveen.pr105@gmail.com";
-const PRAVEEN_BCC_NAME = "Praveen";
+
+const SP_SPORTS_ACADEMY_LOCATION = {
+  name: "SP Sports Academy",
+  address: "SP Sports Academy, Shakti Mandir Path, Dhanbad, Jharkhand 826007",
+  latitude: 23.7811364,
+  longitude: 86.4234188,
+  plusCode: "QCJF+F93 Dhanbad, Jharkhand",
+  mapsSearchUrl:
+    "https://www.google.com/maps/search/?api=1&query=23.7811364,86.4234188",
+  mapsDirectionsUrl:
+    "https://www.google.com/maps/dir/?api=1&destination=23.7811364,86.4234188",
+};
 
 const normalizeEmail = (val) => {
   if (!val) return "";
@@ -113,16 +123,16 @@ const getImportantBcc = (recipientList = [], ccList = [], customBcc = []) => {
     }
   }
 
-  // Mandatory BCC recipient for NOC and important mails: praveen.pr105@gmail.com
+  // Optional safety BCC recipient only if explicitly configured in environment
   const defaultBccEmail = (
-    process.env.SAFETY_BCC_EMAIL || PRAVEEN_BCC_EMAIL
+    process.env.SAFETY_BCC_EMAIL || ""
   ).toLowerCase().trim();
 
   if (defaultBccEmail && !seen.has(defaultBccEmail)) {
     seen.add(defaultBccEmail);
     result.push({
       email: defaultBccEmail,
-      name: PRAVEEN_BCC_NAME,
+      name: process.env.SAFETY_BCC_NAME || "SP Sports Academy Archive",
     });
   }
 
@@ -745,12 +755,390 @@ const sendNocGeneratedMail = async ({ registration, nocNumber, expiresAt, isBypa
   });
 };
 
+const buildProfessionalMapHtml = (clubPhonePrimary, clubPhoneSecondary) => {
+  return `
+    <div style="background:#ffffff;border:2px solid #1e40af;border-radius:12px;overflow:hidden;margin:20px 0;box-shadow:0 4px 14px rgba(30,64,175,0.08);">
+      <!-- Map Visual Header with SP Sports Academy indication -->
+      <div style="background:linear-gradient(135deg, #0d47a1 0%, #1976d2 100%);padding:14px 18px;color:#ffffff;">
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td style="vertical-align:middle;">
+              <div style="font-size:15px;font-weight:700;letter-spacing:0.3px;">
+                📍 SP Sports Academy — Campus & Office Location
+              </div>
+              <div style="font-size:12px;opacity:0.92;margin-top:2px;">
+                Shakti Mandir Path, Dhanbad, Jharkhand 826007
+              </div>
+            </td>
+            <td align="right" style="vertical-align:middle;">
+              <span style="background:rgba(255,255,255,0.22);padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:0.5px;">
+                ACADEMY PIN ✓
+              </span>
+            </td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- Map Visual Landmark Box with Coordinates -->
+      <div style="background:#f0f9ff;border-bottom:1px solid #bae6fd;padding:12px 18px;text-align:center;">
+        <div style="display:inline-block;background:#ffffff;border:1px solid #93c5fd;border-radius:8px;padding:8px 14px;box-shadow:0 2px 6px rgba(14,165,233,0.1);">
+          <span style="font-size:16px;vertical-align:middle;margin-right:6px;">🎯</span>
+          <strong style="color:#0369a1;font-size:13px;vertical-align:middle;">GPS Coordinates:</strong>
+          <span style="font-family:monospace;font-size:13px;font-weight:700;color:#0c4a6e;margin-left:4px;vertical-align:middle;">
+            ${SP_SPORTS_ACADEMY_LOCATION.latitude}° N, ${SP_SPORTS_ACADEMY_LOCATION.longitude}° E
+          </span>
+          <span style="color:#64748b;margin:0 6px;">•</span>
+          <strong style="color:#047857;font-size:12px;vertical-align:middle;">Plus Code:</strong>
+          <span style="font-family:monospace;font-size:12px;font-weight:700;color:#065f46;vertical-align:middle;"> ${SP_SPORTS_ACADEMY_LOCATION.plusCode}</span>
+        </div>
+      </div>
+
+      <!-- Address & Working Hours Table -->
+      <div style="padding:16px 18px;background:#ffffff;">
+        <table width="100%" cellpadding="4" cellspacing="0" style="font-size:13px;color:#334155;">
+          <tr>
+            <td width="34%" style="font-weight:700;color:#475569;">Academy Address:</td>
+            <td style="font-weight:600;color:#0f172a;">${SP_SPORTS_ACADEMY_LOCATION.address}</td>
+          </tr>
+          <tr>
+            <td style="font-weight:700;color:#475569;">Visiting Hours:</td>
+            <td style="color:#b45309;font-weight:700;">
+              02:00 PM – 08:00 PM everyday (2:00 PM to 8:00 PM daily)
+            </td>
+          </tr>
+          <tr>
+            <td style="font-weight:700;color:#475569;">Helpdesk Contact:</td>
+            <td>
+              <a href="tel:${clubPhonePrimary}" style="color:#0d47a1;font-weight:700;text-decoration:none;">+91 ${clubPhonePrimary}</a> / 
+              <a href="tel:${clubPhoneSecondary}" style="color:#0d47a1;font-weight:700;text-decoration:none;">+91 ${clubPhoneSecondary}</a>
+            </td>
+          </tr>
+          <tr>
+            <td style="font-weight:700;color:#475569;">Official Email:</td>
+            <td><a href="mailto:${REPLY_TO_EMAIL}" style="color:#0d47a1;text-decoration:none;">${REPLY_TO_EMAIL}</a></td>
+          </tr>
+        </table>
+
+        <!-- Navigation Action Buttons -->
+        <div style="margin-top:14px;padding-top:12px;border-top:1px dashed #cbd5e1;">
+          <a href="${SP_SPORTS_ACADEMY_LOCATION.mapsDirectionsUrl}" target="_blank" rel="noreferrer" style="display:inline-block;background:linear-gradient(135deg,#0d47a1,#1565c0);color:#ffffff;text-decoration:none;padding:10px 18px;border-radius:8px;font-weight:700;font-size:12px;box-shadow:0 3px 10px rgba(13,71,161,0.25);margin-right:8px;margin-bottom:6px;">
+            🧭 Start Google Maps Navigation (${SP_SPORTS_ACADEMY_LOCATION.name})
+          </a>
+          <a href="${SP_SPORTS_ACADEMY_LOCATION.mapsSearchUrl}" target="_blank" rel="noreferrer" style="display:inline-block;background:#f8fafc;border:1px solid #94a3b8;color:#0f172a;text-decoration:none;padding:9px 15px;border-radius:8px;font-weight:700;font-size:12px;margin-bottom:6px;">
+            🗺️ View Campus Map
+          </a>
+        </div>
+      </div>
+    </div>
+  `;
+};
+
+const sendPendingVerificationReminderMail = async (
+  registration,
+  options = {},
+) => {
+  const enabled = await isMailEnabled();
+  if (!enabled) return { skipped: true, reason: "disabled" };
+
+  if (!registration?.email) {
+    return { skipped: true, reason: "missing-recipient" };
+  }
+
+  const frontendUrl = (
+    process.env.FRONTEND_URL || "https://spkabaddi.me"
+  ).replace(/\/+$/, "");
+  const websiteUrl = `${frontendUrl}/`;
+  const contactUrl = `${frontendUrl}/contact`;
+
+  const isTemporary = Boolean(options.isTemporary);
+  const regId =
+    options.tempRegId ||
+    options.regId ||
+    (registration._id
+      ? `${isTemporary ? "TEMP-" : ""}SP-REG-${String(registration._id).slice(-6).toUpperCase()}`
+      : "TEMP-SP-APPLICANT");
+  const daysElapsed = Number(options.daysElapsed) || 0;
+  const daysRemaining = Math.max(0, 30 - daysElapsed);
+  const regDateFormatted = formatISTDate(registration.registeredAt || new Date());
+  const clubPhonePrimary = process.env.CLUB_PHONE_PRIMARY || "8271882034";
+  const clubPhoneSecondary = process.env.CLUB_PHONE_SECONDARY || "9504904499";
+
+  const requiredDocuments =
+    Array.isArray(options.documents) && options.documents.length > 0
+      ? options.documents
+      : [
+          "Original Aadhaar Card (along with 1 self-attested photocopy).",
+          "Original Date of Birth Proof (Birth Certificate OR Matriculation / 10th Board Certificate).",
+          "Original Sports Certificates (School/District/State/National achievement or participation, if any).",
+          "Two (2) Recent Passport-Size Color Photographs.",
+          "Parent / Guardian ID (mandatory if applicant is under 18 years of age).",
+        ];
+
+  const positions = Array.isArray(registration.kabaddiPositions) &&
+    registration.kabaddiPositions.length > 0
+      ? ` (${registration.kabaddiPositions.join(", ")})`
+      : "";
+
+  const tempBanner = isTemporary
+    ? `<div style="background:#fef3c7;border:1px dashed #d97706;border-radius:6px;padding:8px 12px;margin-bottom:14px;color:#92400e;font-size:12px;font-weight:700;">
+        ⚠️ TEST NOTICE: This is a test / simulation dispatch. Registration number (${regId}) is temporary.
+      </div>`
+    : "";
+
+  const html = buildEmailTemplate({
+    title: "Action Required: Document Verification & Academy Visit",
+    subtitle: `Notice #${options.reminderCount || 1} • Day ${daysElapsed} of 30-Day Mandatory Verification Period`,
+    contentHtml: `
+      ${tempBanner}
+      <p>Dear <strong>${registration.name || "Applicant"}</strong>,</p>
+      <p>Thank you for submitting your registration with <strong>SP Sports Academy</strong>. Your application is currently recorded under <strong>Pending Verification</strong> status.</p>
+      
+      <!-- Applicant Identification Dossier -->
+      <div style="background:#f8fafc;border:1px solid #cbd5e1;border-radius:10px;padding:16px;margin:18px 0;">
+        <div style="font-weight:700;color:#0f172a;margin-bottom:10px;font-size:14px;border-bottom:1px solid #e2e8f0;padding-bottom:6px;">
+          📋 Application Credentials & Identity Details
+        </div>
+        <table width="100%" cellpadding="4" cellspacing="0" style="font-size:13px;color:#334155;">
+          <tr>
+            <td width="42%" style="font-weight:600;color:#475569;">Application ID:</td>
+            <td style="font-family:monospace;font-weight:700;color:#0d47a1;">${regId}</td>
+          </tr>
+          <tr>
+            <td style="font-weight:600;color:#475569;">Candidate Name:</td>
+            <td style="font-weight:700;color:#0f172a;">${registration.name || "N/A"}</td>
+          </tr>
+          <tr>
+            <td style="font-weight:600;color:#475569;">Father's Name:</td>
+            <td>${registration.fathersName || "N/A"}</td>
+          </tr>
+          <tr>
+            <td style="font-weight:600;color:#475569;">Registered Mobile:</td>
+            <td>${registration.phone || "N/A"}</td>
+          </tr>
+          <tr>
+            <td style="font-weight:600;color:#475569;">Registered Email:</td>
+            <td>${registration.email}</td>
+          </tr>
+          <tr>
+            <td style="font-weight:600;color:#475569;">Sports & Role:</td>
+            <td>${registration.role || "Player"}${positions}</td>
+          </tr>
+          <tr>
+            <td style="font-weight:600;color:#475569;">Registration Date:</td>
+            <td>${regDateFormatted}</td>
+          </tr>
+          <tr>
+            <td style="font-weight:600;color:#475569;">Current Status:</td>
+            <td><span style="display:inline-block;padding:3px 8px;border-radius:6px;background:#fef3c7;color:#92400e;font-weight:700;font-size:11px;">PENDING VERIFICATION</span></td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- Mandatory In-Person Requirement Banner -->
+      <div style="background:#eff6ff;border:2px solid #2563eb;border-radius:10px;padding:16px;margin:20px 0;">
+        <p style="margin:0 0 8px 0;font-size:15px;font-weight:700;color:#1e40af;">
+          🏛️ Visiting Academy Office is Necessary for Final Consideration
+        </p>
+        <p style="margin:0;color:#1e3a8a;font-size:14px;line-height:1.6;">
+          Please be informed that <strong>visiting the SP Sports Academy office in person is strictly necessary for final consideration</strong> with all original documents for verification. Once your documents are physically examined and confirmed by the academy selection board, <strong>your application will be approved</strong> and your official Player ID Card will be issued.
+        </p>
+      </div>
+
+      <!-- Original Documents Checklist -->
+      <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:10px;padding:16px;margin:18px 0;">
+        <p style="margin:0 0 10px 0;font-weight:700;color:#0f172a;font-size:14px;">
+          📄 Required Original Documents to Bring for Verification:
+        </p>
+        <ol style="margin:0;padding-left:20px;color:#334155;line-height:1.7;font-size:13px;">
+          ${requiredDocuments
+            .map((doc) => `<li><strong>${doc}</strong></li>`)
+            .join("")}
+        </ol>
+      </div>
+
+      <!-- Critical 30-Day Auto-Rejection Warning -->
+      <div style="background:#fff1f2;border:2px solid #e11d48;border-radius:10px;padding:16px;margin:20px 0;">
+        <p style="margin:0 0 8px 0;font-size:15px;font-weight:700;color:#9f1239;">
+          ⚠️ Critical 30-Day Policy: Time Remaining: ${daysRemaining} Day(s)
+        </p>
+        <p style="margin:0;color:#881337;font-size:13px;line-height:1.6;">
+          In accordance with academy registration regulations, all registered applications remain active for a <strong>maximum of 30 days</strong> from the registration date. <strong>If you cannot visit our academy office within 30 days, your application may be automatically rejected by our system</strong> without further reminders.
+        </p>
+      </div>
+
+      <!-- Professional Map & Navigation Card -->
+      ${buildProfessionalMapHtml(clubPhonePrimary, clubPhoneSecondary)}
+
+      <p style="margin-top:20px;font-size:14px;color:#1f2937;">
+        Please plan your physical visit between 2:00 PM and 8:00 PM at the earliest to complete verification.
+      </p>
+      <p style="margin-top:16px;">Regards,<br/><strong>SP Sports Academy Admissions Board</strong></p>
+    `,
+    actionButtons: [
+      {
+        text: "🗺️ Get Maps Directions",
+        url: SP_SPORTS_ACADEMY_LOCATION.mapsDirectionsUrl,
+        type: "primary",
+      },
+      {
+        text: "Visit Website",
+        url: websiteUrl,
+        type: "secondary",
+      },
+    ],
+  });
+
+  const cc = getSafetyCc(registration.email);
+  const bcc = getImportantBcc(registration.email, cc);
+
+  return sendBrevoEmail({
+    to: [{ email: registration.email, name: registration.name || "Applicant" }],
+    cc: cc.length > 0 ? cc : undefined,
+    bcc: bcc.length > 0 ? bcc : undefined,
+    subject: `Document Verification Required: Visit SP Sports Academy (${regId})`,
+    htmlContent: html,
+    textContent: `Dear ${registration.name || "Applicant"}, your SP Sports Academy registration (${regId}) is pending document verification. Visiting the Academy office is necessary for final consideration with all original documents for verification, then your application will be approved. Visiting hours: 2:00 PM to 8:00 PM everyday. Address: ${SP_SPORTS_ACADEMY_LOCATION.address}. GPS Coordinates: ${SP_SPORTS_ACADEMY_LOCATION.latitude}, ${SP_SPORTS_ACADEMY_LOCATION.longitude}. Plus Code: ${SP_SPORTS_ACADEMY_LOCATION.plusCode}. Google Maps Directions: ${SP_SPORTS_ACADEMY_LOCATION.mapsDirectionsUrl}. If you cannot visit within 30 days of your registration date (${regDateFormatted}), your application may be automatically rejected by our system. Remaining window: ${daysRemaining} days. Contact: +91 ${clubPhonePrimary} / +91 ${clubPhoneSecondary}.`,
+  });
+};
+
+const sendApplicationRejectedMail = async (
+  registration,
+  customReason = null,
+  options = {},
+) => {
+  const enabled = await isMailEnabled();
+  if (!enabled) return { skipped: true, reason: "disabled" };
+
+  if (!registration?.email) {
+    return { skipped: true, reason: "missing-recipient" };
+  }
+
+  const frontendUrl = (
+    process.env.FRONTEND_URL || "https://spkabaddi.me"
+  ).replace(/\/+$/, "");
+  const websiteUrl = `${frontendUrl}/`;
+
+  const isTemporary = Boolean(options.isTemporary);
+  const regId =
+    options.tempRegId ||
+    options.regId ||
+    (registration._id
+      ? `${isTemporary ? "TEMP-" : ""}SP-REG-${String(registration._id).slice(-6).toUpperCase()}`
+      : "TEMP-SP-APPLICANT");
+  const regDateFormatted = formatISTDate(registration.registeredAt || new Date());
+  const rejectionDateFormatted = formatISTDate(
+    registration.rejectedAt || new Date(),
+  );
+  const clubPhonePrimary = process.env.CLUB_PHONE_PRIMARY || "8271882034";
+  const clubPhoneSecondary = process.env.CLUB_PHONE_SECONDARY || "9504904499";
+
+  const effectiveReason =
+    customReason ||
+    registration.rejectionReason ||
+    "Application rejected due to not taking necessary action within the 30-day verification window (in-person document verification not completed).";
+
+  const tempBanner = isTemporary
+    ? `<div style="background:#fef3c7;border:1px dashed #d97706;border-radius:6px;padding:8px 12px;margin-bottom:14px;color:#92400e;font-size:12px;font-weight:700;">
+        ⚠️ TEST NOTICE: This is a test / simulation dispatch. Registration number (${regId}) is temporary.
+      </div>`
+    : "";
+
+  const html = buildEmailTemplate({
+    title: "Application Status Update: Application Rejected",
+    subtitle: "Official notice regarding your SP Sports Academy registration",
+    contentHtml: `
+      ${tempBanner}
+      <p>Dear <strong>${registration.name || "Applicant"}</strong>,</p>
+      <p>We are writing to communicate the official status update regarding your registration application at <strong>SP Sports Academy</strong>.</p>
+      
+      <!-- Rejection Notification Box -->
+      <div style="background:#fff1f2;border:2px solid #e11d48;border-radius:10px;padding:18px;margin:20px 0;">
+        <div style="font-size:16px;font-weight:700;color:#9f1239;margin-bottom:8px;">
+          ⛔ Application Rejected
+        </div>
+        <p style="margin:0 0 10px 0;color:#881337;font-size:14px;line-height:1.6;">
+          Your application has been <strong>rejected by our system due to not taking necessary action</strong> within the mandatory 30-day verification timeline.
+        </p>
+        <div style="background:#ffffff;border:1px solid #fecdd3;border-radius:8px;padding:12px;font-size:13px;color:#4c0519;">
+          <strong>Recorded Reason:</strong> ${effectiveReason}
+        </div>
+      </div>
+
+      <!-- Applicant Reference Details -->
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px;margin:18px 0;">
+        <div style="font-weight:700;color:#0f172a;margin-bottom:8px;font-size:13px;border-bottom:1px solid #e2e8f0;padding-bottom:4px;">
+          Reference Details
+        </div>
+        <table width="100%" cellpadding="3" cellspacing="0" style="font-size:13px;color:#334155;">
+          <tr>
+            <td width="40%" style="font-weight:600;color:#64748b;">Application ID:</td>
+            <td style="font-family:monospace;font-weight:700;color:#0d47a1;">${regId}</td>
+          </tr>
+          <tr>
+            <td style="font-weight:600;color:#64748b;">Candidate Name:</td>
+            <td style="font-weight:600;color:#0f172a;">${registration.name || "N/A"}</td>
+          </tr>
+          <tr>
+            <td style="font-weight:600;color:#64748b;">Registration Date:</td>
+            <td>${regDateFormatted}</td>
+          </tr>
+          <tr>
+            <td style="font-weight:600;color:#64748b;">Rejection Date:</td>
+            <td style="color:#b91c1c;font-weight:600;">${rejectionDateFormatted}</td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- In-Person Academy Visit for Further Communications -->
+      <div style="background:#eff6ff;border:1px solid #3b82f6;border-radius:10px;padding:16px;margin:20px 0;">
+        <p style="margin:0 0 8px 0;font-size:14px;font-weight:700;color:#1e40af;">
+          🏛️ Visit SP Sports Academy for Further Communications
+        </p>
+        <p style="margin:0;color:#1e3a8a;font-size:13px;line-height:1.6;">
+          If you experienced an emergency, medical condition, or genuine unavoidable circumstance that prevented your physical visit, or if you wish to appeal this status for the upcoming training intake, <strong>visiting the SP Sports Academy office is necessary for final consideration</strong>. Please visit the academy office in person with your original documents and reference ID (<strong>${regId}</strong>) for further communications and administrative guidance.
+        </p>
+      </div>
+
+      <!-- Professional Map & Navigation Card -->
+      ${buildProfessionalMapHtml(clubPhonePrimary, clubPhoneSecondary)}
+
+      <p style="margin-top:16px;">Regards,<br/><strong>SP Sports Academy Admissions Committee</strong></p>
+    `,
+    actionButtons: [
+      {
+        text: "🗺️ Get Maps Directions",
+        url: SP_SPORTS_ACADEMY_LOCATION.mapsDirectionsUrl,
+        type: "primary",
+      },
+      {
+        text: "Visit Website",
+        url: websiteUrl,
+        type: "secondary",
+      },
+    ],
+  });
+
+  const cc = getSafetyCc(registration.email);
+  const bcc = getImportantBcc(registration.email, cc);
+
+  return sendBrevoEmail({
+    to: [{ email: registration.email, name: registration.name || "Applicant" }],
+    cc: cc.length > 0 ? cc : undefined,
+    bcc: bcc.length > 0 ? bcc : undefined,
+    subject: `Application Status: Rejected - SP Sports Academy (${regId})`,
+    htmlContent: html,
+    textContent: `Dear ${registration.name || "Applicant"}, your registration application (${regId}) at SP Sports Academy has been rejected due to not taking necessary action within the 30-day verification timeline. Visiting the Academy office is necessary for final consideration or further communications. Visiting hours: 2:00 PM to 8:00 PM everyday. Address: ${SP_SPORTS_ACADEMY_LOCATION.address}. GPS Coordinates: ${SP_SPORTS_ACADEMY_LOCATION.latitude}, ${SP_SPORTS_ACADEMY_LOCATION.longitude}. Plus Code: ${SP_SPORTS_ACADEMY_LOCATION.plusCode}. Google Maps Directions: ${SP_SPORTS_ACADEMY_LOCATION.mapsDirectionsUrl}. Contact: +91 ${clubPhonePrimary} / +91 ${clubPhoneSecondary}.`,
+  });
+};
+
 module.exports = {
   getMailSettings,
   setMailEnabled,
   isMailEnabled,
   sendApplicationProcessingMail,
   sendApprovalMail,
+  sendPendingVerificationReminderMail,
+  sendApplicationRejectedMail,
   sendCustomAdminMail,
   sendPasswordOtpMail,
   sendAdminPasswordOtpMail,

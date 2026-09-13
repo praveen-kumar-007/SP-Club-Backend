@@ -86,6 +86,31 @@ const registrationSchema = new mongoose.Schema({
     type: String,
     default: null,
   },
+  autoRejected: {
+    type: Boolean,
+    default: false,
+  },
+  autoRejectionMailSentAt: {
+    type: Date,
+    default: null,
+  },
+  verificationReminders: {
+    lastSentAt: {
+      type: Date,
+      default: null,
+    },
+    count: {
+      type: Number,
+      default: 0,
+    },
+    history: [
+      {
+        sentAt: { type: Date, default: Date.now },
+        dayNumber: { type: Number },
+        reminderIndex: { type: Number },
+      },
+    ],
+  },
 
   // ID Card fields (generated ONLY after approval)
   idCardNumber: {
