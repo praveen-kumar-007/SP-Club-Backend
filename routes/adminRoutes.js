@@ -430,44 +430,47 @@ router.post("/password/forgot/reset", async (req, res) => {
   }
 });
 
-// POST /api/admin/logout - Admin logout (optional - mainly for frontend)
-router.post("/logout", adminAuth, async (req, res) => {
+// POST /api/admin/logout - Admin logout (supports standard auth header and screen-close sendBeacon)
+router.post("/logout", async (req, res) => {
   try {
-    const { deviceId } = req.body;
-    const adminId = req.admin.id;
+    const token = req.headers.authorization?.split(" ")[1] || req.body?.token;
+    const { deviceId } = req.body || {};
 
-    // Find admin and remove the device session
-    const admin = await Admin.findById(adminId);
-    if (!admin) {
-      return res.status(404).json({ message: "Admin not found" });
+    let adminId = null;
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, ADMIN_JWT_SECRET);
+        adminId = decoded.id;
+      } catch (err) {
+        // Token expired or invalid
+      }
     }
 
-    if (!admin.activeSessions) {
-      admin.activeSessions = [];
-    }
-
-    // Remove the session for this device
-    admin.activeSessions = admin.activeSessions.filter(
-      (s) => s.deviceId !== deviceId,
-    );
-    await admin.save();
-
-    if (process.env.NODE_ENV === "development") {
-      console.log(
-        `✅ Admin logged out: ${admin.username} from device: ${deviceId}`,
+    if (adminId) {
+      const admin = await Admin.findById(adminId);
+      if (admin && admin.activeSessions) {
+        if (deviceId) {
+          admin.activeSessions = admin.activeSessions.filter(
+            (s) => s.deviceId !== deviceId,
+          );
+        } else {
+          admin.activeSessions = [];
+        }
+        await admin.save();
+      }
+    } else if (deviceId) {
+      await Admin.updateMany(
+        { "activeSessions.deviceId": deviceId },
+        { $pull: { activeSessions: { deviceId } } },
       );
-      console.log(
-        `   Remaining active sessions: ${admin.activeSessions.length}/${MAX_ADMIN_DEVICES}`,
-      );
     }
 
-    res.json({
+    return res.json({
       message: "Logged out successfully",
-      remainingSessions: admin.activeSessions.length,
     });
   } catch (error) {
     console.error("❌ Logout error:", error);
-    res.status(500).json({ message: "Error logging out" });
+    return res.status(500).json({ message: "Error logging out" });
   }
 });
 
