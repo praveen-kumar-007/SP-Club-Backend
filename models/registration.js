@@ -256,7 +256,7 @@ const registrationSchema = new mongoose.Schema({
   noc: {
     status: {
       type: String,
-      enum: ["none", "applied", "approved", "relieved"],
+      enum: ["none", "applied", "approved", "relieved", "rejected", "cancelled"],
       default: "none",
     },
     appliedAt: {
@@ -318,6 +318,165 @@ const registrationSchema = new mongoose.Schema({
       type: Date,
       default: null,
     },
+    // Clearance Checklist (Payment, Kit, Property, Dues)
+    clearances: {
+      feeCleared: {
+        type: Boolean,
+        default: false,
+      },
+      feeClearedAt: {
+        type: Date,
+        default: null,
+      },
+      feeClearedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Admin",
+        default: null,
+      },
+      kitReturned: {
+        type: Boolean,
+        default: false,
+      },
+      kitReturnedAt: {
+        type: Date,
+        default: null,
+      },
+      kitReturnedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Admin",
+        default: null,
+      },
+      idCardReturned: {
+        type: Boolean,
+        default: false,
+      },
+      idCardReturnedAt: {
+        type: Date,
+        default: null,
+      },
+      duesCleared: {
+        type: Boolean,
+        default: false,
+      },
+      duesClearedAt: {
+        type: Date,
+        default: null,
+      },
+      remarks: {
+        type: String,
+        default: "",
+      },
+    },
+    // Cancellation / Rejection Tracking
+    cancellation: {
+      cancelledAt: {
+        type: Date,
+        default: null,
+      },
+      cancelledBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Admin",
+        default: null,
+      },
+      reasons: [
+        {
+          type: String,
+        },
+      ],
+      adminNote: {
+        type: String,
+        default: "",
+      },
+      mailSent: {
+        type: Boolean,
+        default: false,
+      },
+    },
+  },
+
+  // Student Recovery & Re-Admission System
+  recovery: {
+    status: {
+      type: String,
+      enum: ["none", "link_sent", "pending_review", "approved", "rejected"],
+      default: "none",
+    },
+    recoveryToken: {
+      type: String,
+      default: null,
+      sparse: true,
+    },
+    tokenExpiresAt: {
+      type: Date,
+      default: null,
+    },
+    applicationLetterUrl: {
+      type: String,
+      default: null,
+    },
+    applicationLetterPublicId: {
+      type: String,
+      default: null,
+    },
+    applicationNote: {
+      type: String,
+      default: "",
+    },
+    submittedVia: {
+      type: String,
+      enum: ["admin", "student_link"],
+      default: null,
+    },
+    submittedAt: {
+      type: Date,
+      default: null,
+    },
+    // Separate Agreement Tracking & Timestamps
+    termsAgreed: {
+      type: Boolean,
+      default: false,
+    },
+    termsAgreedAt: {
+      type: Date,
+      default: null,
+    },
+    policyAgreed: {
+      type: Boolean,
+      default: false,
+    },
+    policyAgreedAt: {
+      type: Date,
+      default: null,
+    },
+    ipAddress: {
+      type: String,
+      default: null,
+    },
+    userAgent: {
+      type: String,
+      default: null,
+    },
+    reviewedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Admin",
+      default: null,
+    },
+    reviewedAt: {
+      type: Date,
+      default: null,
+    },
+    reviewRemarks: {
+      type: String,
+      default: "",
+    },
+    history: [
+      {
+        action: { type: String },
+        timestamp: { type: Date, default: Date.now },
+        by: { type: String },
+        details: { type: String },
+      },
+    ],
   },
 });
 
@@ -332,6 +491,8 @@ registrationSchema.index({ feeAccessEnabled: 1 });
 registrationSchema.index({ "feePayments.month": 1 });
 registrationSchema.index({ "noc.status": 1, "noc.coolingEndsAt": 1 });
 registrationSchema.index({ "noc.expiresAt": 1 });
+registrationSchema.index({ "recovery.recoveryToken": 1 }, { sparse: true });
+registrationSchema.index({ "recovery.status": 1 });
 
 registrationSchema.path("jerseyNumber").validate(async function (value) {
   if (value === null || value === undefined) return true;

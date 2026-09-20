@@ -8,7 +8,7 @@ const Admin = require("../models/admin");
 const Registration = require("../models/registration");
 const PlayerMessage = require("../models/playerMessage");
 const Contact = require("../models/contact");
-const { cloudinary, upload } = require("../config/cloudinary");
+const { cloudinary, upload, uploadDoc } = require("../config/cloudinary");
 const {
   getMailSettings,
   setMailEnabled,
@@ -17,6 +17,9 @@ const {
   sendAdminPasswordOtpMail,
   sendNocInitiatedMail,
   sendNocGeneratedMail,
+  sendNocRejectedMail,
+  sendNocRecoveryLinkMail,
+  sendNocRecoveryApprovedMail,
   sendApplicationRejectedMail,
   sendPendingVerificationReminderMail,
   sendApplicationProcessingMail,
@@ -2859,6 +2862,15 @@ const processNocTransitions = async () => {
     });
 
     for (const player of coolingCompletedPlayers) {
+      // Guard: Only auto-generate if Payment and Kit clearances are verified
+      const isFeeCleared = Boolean(player.noc?.clearances?.feeCleared);
+      const isKitReturned = Boolean(player.noc?.clearances?.kitReturned);
+
+      if (!isFeeCleared || !isKitReturned) {
+        // Clearances are still pending. Do not auto-issue certificate until clearances are satisfied.
+        continue;
+      }
+
       const nocNum = generateNocNumber(player);
       const generatedDate = now;
       const signatureHash = generateNocSignatureHash(player, nocNum, generatedDate);
@@ -2970,7 +2982,65 @@ router.post("/registrations/:id/noc/apply", adminAuth, async (req, res) => {
   }
 });
 
-// POST /api/admin/registrations/:id/noc/bypass-generate - Super Admin instant clearance
+// PATCH /api/admin/registrations/:id/noc/clearances - Update clearance checklist (fees, kit, ID card, dues)
+router.patch("/registrations/:id/noc/clearances", adminAuth, async (req, res) => {
+  try {
+    const { feeCleared, kitReturned, idCardReturned, duesCleared, remarks } = req.body;
+    const player = await Registration.findById(req.params.id);
+
+    if (!player) {
+      return res.status(404).json({ message: "Player not found" });
+    }
+
+    if (!player.noc) {
+      player.noc = { status: "none" };
+    }
+    if (!player.noc.clearances) {
+      player.noc.clearances = {};
+    }
+
+    const now = new Date();
+
+    if (feeCleared !== undefined) {
+      player.noc.clearances.feeCleared = Boolean(feeCleared);
+      player.noc.clearances.feeClearedAt = feeCleared ? now : null;
+      player.noc.clearances.feeClearedBy = feeCleared ? req.adminId : null;
+    }
+
+    if (kitReturned !== undefined) {
+      player.noc.clearances.kitReturned = Boolean(kitReturned);
+      player.noc.clearances.kitReturnedAt = kitReturned ? now : null;
+      player.noc.clearances.kitReturnedBy = kitReturned ? req.adminId : null;
+    }
+
+    if (idCardReturned !== undefined) {
+      player.noc.clearances.idCardReturned = Boolean(idCardReturned);
+      player.noc.clearances.idCardReturnedAt = idCardReturned ? now : null;
+    }
+
+    if (duesCleared !== undefined) {
+      player.noc.clearances.duesCleared = Boolean(duesCleared);
+      player.noc.clearances.duesClearedAt = duesCleared ? now : null;
+    }
+
+    if (remarks !== undefined) {
+      player.noc.clearances.remarks = String(remarks || "").trim();
+    }
+
+    await player.save();
+
+    return res.json({
+      message: "NOC clearances updated successfully.",
+      clearances: player.noc.clearances,
+      player,
+    });
+  } catch (error) {
+    console.error("Error updating NOC clearances:", error);
+    return res.status(500).json({ message: "Failed to update clearances", error: error.message });
+  }
+});
+
+// POST /api/admin/registrations/:id/noc/bypass-generate - Super Admin instant clearance (guarded by checklist)
 router.post("/registrations/:id/noc/bypass-generate", adminAuth, async (req, res) => {
   try {
     const player = await Registration.findById(req.params.id);
@@ -2982,6 +3052,21 @@ router.post("/registrations/:id/noc/bypass-generate", adminAuth, async (req, res
     if (player.status !== "approved") {
       return res.status(400).json({
         message: "NOC can only be generated for approved academy players.",
+      });
+    }
+
+    // Verify clearance checklist
+    const isFeeCleared = Boolean(player.noc?.clearances?.feeCleared);
+    const isKitReturned = Boolean(player.noc?.clearances?.kitReturned);
+    const force = req.body?.force === true;
+
+    if (!force && (!isFeeCleared || !isKitReturned)) {
+      return res.status(400).json({
+        message: "Clearance verification required: Both 'Payment / Fee Cleared' and 'Kit / Equipment Returned' must be verified and checked before generating NOC. If there are pending items, use 'Reject / Cancel NOC with Deficiencies'.",
+        pendingClearances: {
+          feeCleared: isFeeCleared,
+          kitReturned: isKitReturned,
+        },
       });
     }
 
@@ -3019,7 +3104,7 @@ router.post("/registrations/:id/noc/bypass-generate", adminAuth, async (req, res
     }
 
     return res.json({
-      message: "Super Admin authorization verified: 14-day countdown bypassed. Official NOC issued successfully.",
+      message: "Clearance verified: Official NOC certificate issued successfully.",
       player,
     });
   } catch (error) {
@@ -3056,6 +3141,291 @@ router.post("/registrations/:id/noc/cancel", adminAuth, async (req, res) => {
     return res.status(500).json({ message: "Failed to cancel NOC", error: error.message });
   }
 });
+
+// POST /api/admin/registrations/:id/noc/reject - Cancel / Reject NOC with deficiency reasons and send professional Brevo email
+router.post("/registrations/:id/noc/reject", adminAuth, async (req, res) => {
+  try {
+    const { reasons = [], adminNote = "" } = req.body;
+    const player = await Registration.findById(req.params.id);
+
+    if (!player) {
+      return res.status(404).json({ message: "Player not found" });
+    }
+
+    if (player.noc?.status !== "applied" && player.noc?.status !== "approved") {
+      return res.status(400).json({
+        message: "Only NOCs currently in cooling period or issued can be cancelled / rejected.",
+      });
+    }
+
+    const now = new Date();
+    const finalReasons = Array.isArray(reasons) && reasons.length > 0
+      ? reasons
+      : ["Outstanding institutional clearances or kit return pending"];
+
+    player.noc.status = "rejected";
+    player.noc.coolingEndsAt = null;
+    player.noc.cancellation = {
+      cancelledAt: now,
+      cancelledBy: req.adminId,
+      reasons: finalReasons,
+      adminNote: String(adminNote || "").trim(),
+      mailSent: false,
+    };
+
+    await player.save();
+
+    // Trigger professional Brevo rejection email
+    let mailSuccess = false;
+    try {
+      await sendNocRejectedMail({
+        registration: player,
+        reasons: finalReasons,
+        adminNote: String(adminNote || "").trim(),
+      });
+      mailSuccess = true;
+      player.noc.cancellation.mailSent = true;
+      await player.save();
+    } catch (mailErr) {
+      console.error("Error sending NOC rejection email:", mailErr);
+    }
+
+    return res.json({
+      message: "NOC rejected due to clearance deficiencies. Formal notice email dispatched to member.",
+      mailSent: mailSuccess,
+      player,
+    });
+  } catch (error) {
+    console.error("Error rejecting NOC:", error);
+    return res.status(500).json({ message: "Failed to reject NOC", error: error.message });
+  }
+});
+
+// POST /api/admin/registrations/:id/recovery/generate-link - Generate secure student recovery link
+router.post("/registrations/:id/recovery/generate-link", adminAuth, async (req, res) => {
+  try {
+    const player = await Registration.findById(req.params.id);
+    if (!player) {
+      return res.status(404).json({ message: "Player not found" });
+    }
+
+    const token = crypto.randomBytes(24).toString("hex");
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+    const frontendUrl = (
+      process.env.FRONTEND_URL || "https://spkabaddi.me"
+    ).replace(/\/+$/, "");
+    const recoveryUrl = `${frontendUrl}/noc-recovery/${token}`;
+
+    if (!player.recovery) {
+      player.recovery = {};
+    }
+    player.recovery.status = "link_sent";
+    player.recovery.recoveryToken = token;
+    player.recovery.tokenExpiresAt = expiresAt;
+    if (!Array.isArray(player.recovery.history)) {
+      player.recovery.history = [];
+    }
+    player.recovery.history.push({
+      action: "link_generated",
+      timestamp: new Date(),
+      by: "admin",
+      details: `Recovery portal link generated and dispatched by admin (${req.adminId})`,
+    });
+
+    await player.save();
+
+    let emailSent = false;
+    try {
+      await sendNocRecoveryLinkMail({
+        registration: player,
+        recoveryUrl,
+        expiresAt,
+      });
+      emailSent = true;
+    } catch (mailErr) {
+      console.error("Error sending recovery link email:", mailErr);
+    }
+
+    return res.json({
+      message: "Recovery link generated and dispatched successfully.",
+      recoveryUrl,
+      token,
+      expiresAt,
+      emailSent,
+      player,
+    });
+  } catch (error) {
+    console.error("Error generating recovery link:", error);
+    return res.status(500).json({ message: "Failed to generate recovery link", error: error.message });
+  }
+});
+
+// POST /api/admin/registrations/:id/recovery/admin-submit - Direct Admin recovery with letter upload & separate terms timestamps
+router.post(
+  "/registrations/:id/recovery/admin-submit",
+  adminAuth,
+  uploadDoc.single("letter"),
+  async (req, res) => {
+    try {
+      const { applicationNote, termsAgreed, policyAgreed } = req.body;
+      const player = await Registration.findById(req.params.id);
+
+      if (!player) {
+        return res.status(404).json({ message: "Player not found" });
+      }
+
+      const isTermsAgreed = termsAgreed === true || termsAgreed === "true";
+      const isPolicyAgreed = policyAgreed === true || policyAgreed === "true";
+
+      if (!isTermsAgreed || !isPolicyAgreed) {
+        return res.status(400).json({
+          message: "Both Terms & Conditions agreement and Academy Rules & Policy agreement must be confirmed separately.",
+        });
+      }
+
+      const now = new Date();
+      const letterUrl = req.file?.path || req.file?.secure_url || "";
+      const letterPublicId = req.file?.filename || "";
+
+      if (!player.recovery) {
+        player.recovery = {};
+      }
+
+      player.recovery.status = "approved";
+      player.recovery.submittedVia = "admin";
+      player.recovery.submittedAt = now;
+      player.recovery.applicationLetterUrl = letterUrl;
+      player.recovery.applicationLetterPublicId = letterPublicId;
+      player.recovery.applicationNote = String(applicationNote || "").trim();
+      player.recovery.termsAgreed = true;
+      player.recovery.termsAgreedAt = now;
+      player.recovery.policyAgreed = true;
+      player.recovery.policyAgreedAt = now;
+      player.recovery.ipAddress = req.ip || req.connection?.remoteAddress || "admin_direct";
+      player.recovery.userAgent = req.headers["user-agent"] || "Admin Portal";
+      player.recovery.reviewedBy = req.adminId;
+      player.recovery.reviewedAt = now;
+      player.recovery.reviewRemarks = "Direct re-admission executed and approved by Admin.";
+
+      if (!Array.isArray(player.recovery.history)) {
+        player.recovery.history = [];
+      }
+      player.recovery.history.push({
+        action: "admin_direct_recovery",
+        timestamp: now,
+        by: "admin",
+        details: "Direct institutional readmission completed by administrator.",
+      });
+
+      // Reinstate player status & reset NOC
+      player.status = "approved";
+      player.rejectedAt = null;
+      player.rejectionReason = null;
+      if (player.noc) {
+        player.noc.status = "none";
+        player.noc.coolingEndsAt = null;
+        player.noc.expiresAt = null;
+      }
+
+      await player.save();
+
+      // Dispatch welcome back notification mail
+      try {
+        await sendNocRecoveryApprovedMail({ registration: player });
+      } catch (mailErr) {
+        console.error("Error dispatching recovery approved mail:", mailErr);
+      }
+
+      return res.json({
+        message: "Player successfully recovered and re-admitted to active standing!",
+        player,
+      });
+    } catch (error) {
+      console.error("Error processing admin recovery:", error);
+      return res.status(500).json({ message: "Failed to recover player", error: error.message });
+    }
+  }
+);
+
+// POST /api/admin/registrations/:id/recovery/review - Admin reviews pending self-service application
+router.post("/registrations/:id/recovery/review", adminAuth, async (req, res) => {
+  try {
+    const { decision, reviewRemarks } = req.body;
+    const player = await Registration.findById(req.params.id);
+
+    if (!player) {
+      return res.status(404).json({ message: "Player not found" });
+    }
+
+    if (player.recovery?.status !== "pending_review") {
+      return res.status(400).json({
+        message: "Player does not have a pending recovery application awaiting review.",
+      });
+    }
+
+    const now = new Date();
+    player.recovery.reviewedBy = req.adminId;
+    player.recovery.reviewedAt = now;
+    player.recovery.reviewRemarks = String(reviewRemarks || "").trim();
+
+    if (!Array.isArray(player.recovery.history)) {
+      player.recovery.history = [];
+    }
+
+    if (decision === "approve") {
+      player.recovery.status = "approved";
+      player.recovery.history.push({
+        action: "recovery_approved",
+        timestamp: now,
+        by: "admin",
+        details: `Re-admission approved by Admin: ${reviewRemarks || "Criteria verified"}`,
+      });
+
+      // Restore player to active approved
+      player.status = "approved";
+      player.rejectedAt = null;
+      player.rejectionReason = null;
+      if (player.noc) {
+        player.noc.status = "none";
+        player.noc.coolingEndsAt = null;
+        player.noc.expiresAt = null;
+      }
+
+      await player.save();
+
+      try {
+        await sendNocRecoveryApprovedMail({ registration: player });
+      } catch (mailErr) {
+        console.error("Error dispatching recovery approved mail:", mailErr);
+      }
+
+      return res.json({
+        message: "Re-admission application approved! Player reinstated to active membership.",
+        player,
+      });
+    } else {
+      player.recovery.status = "rejected";
+      player.recovery.history.push({
+        action: "recovery_rejected",
+        timestamp: now,
+        by: "admin",
+        details: `Re-admission rejected by Admin: ${reviewRemarks || "Not approved"}`,
+      });
+
+      await player.save();
+
+      return res.json({
+        message: "Re-admission application rejected.",
+        player,
+      });
+    }
+  } catch (error) {
+    console.error("Error reviewing recovery application:", error);
+    return res.status(500).json({ message: "Failed to process review", error: error.message });
+  }
+});
+
 
 // POST /api/admin/registrations/:id/noc/resend-email - Resend NOC notification email
 router.post("/registrations/:id/noc/resend-email", adminAuth, async (req, res) => {

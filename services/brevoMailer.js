@@ -768,6 +768,187 @@ const sendNocGeneratedMail = async ({ registration, nocNumber, expiresAt, isBypa
   });
 };
 
+const sendNocRejectedMail = async ({ registration, reasons = [], adminNote = "" }) => {
+  const enabled = await isMailEnabled();
+  if (!enabled) return { skipped: true, reason: "disabled" };
+
+  if (!registration?.email) return { skipped: true, reason: "missing-recipient" };
+
+  const frontendUrl = (
+    process.env.FRONTEND_URL || "https://spkabaddi.me"
+  ).replace(/\/+$/, "");
+  const dashboardUrl = `${frontendUrl}/player/dashboard`;
+
+  const reasonListHtml = reasons.length > 0
+    ? `<ul style="padding-left:20px;color:#b91c1c;line-height:1.6;font-size:14px;font-weight:600;">
+        ${reasons.map((r) => `<li style="margin-bottom:6px;">⚠️ ${r}</li>`).join("")}
+       </ul>`
+    : `<p style="color:#b91c1c;font-weight:600;">⚠️ Outstanding institutional clearance dues / kit return requirements pending.</p>`;
+
+  const html = buildEmailTemplate({
+    title: "NOC Clearance Rejected / Cancelled ⚠️",
+    subtitle: "Action Required: Pending clearance items must be resolved",
+    contentHtml: `
+      <p>Dear <strong>${registration.name || "Member"}</strong>,</p>
+      <p>Your application for a <strong>No Objection Certificate (NOC)</strong> has been audited by the <strong>SP Sports Academy</strong> administration.</p>
+      
+      <div style="background-color:#fef2f2;border:2px solid #ef4444;border-radius:8px;padding:16px;margin:16px 0;">
+        <p style="margin:0 0 10px 0;font-size:15px;color:#991b1b;font-weight:700;">
+          Due to the following reason(s) verified by administrative audit, your NOC is rejected / cancelled by our system:
+        </p>
+        ${reasonListHtml}
+      </div>
+
+      ${
+        adminNote
+          ? `<div style="background-color:#fffbeb;border:1px solid #f59e0b;border-radius:8px;padding:12px;margin:16px 0;">
+              <p style="margin:0 0 4px 0;color:#92400e;font-size:12px;text-transform:uppercase;font-weight:700;">Administrative Remarks:</p>
+              <p style="margin:0;color:#78350f;font-size:13px;line-height:1.5;">${adminNote}</p>
+             </div>`
+          : ""
+      }
+
+      <div style="background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;margin:16px 0;">
+        <p style="margin:0 0 6px 0;font-size:14px;color:#1e293b;font-weight:700;">Required Action:</p>
+        <p style="margin:0;color:#475569;font-size:13px;line-height:1.6;">
+          Please immediately clear all outstanding fees, return academy training kits / sports gear, and settle any pending property dues at the academy office.
+          Once all dues are completely cleared, you may reapply for your NOC.
+        </p>
+      </div>
+
+      <p style="margin-top:16px;color:#334155;">Thank you for your prompt cooperation.</p>
+      <p style="margin-top:16px;">Regards,<br/><strong>SP Sports Academy Administration</strong></p>
+    `,
+    actionButtons: [
+      {
+        text: "View Dashboard & Contact Academy",
+        url: dashboardUrl,
+        type: "primary",
+      },
+    ],
+  });
+
+  const cc = getSafetyCc(registration.email);
+  const bcc = getImportantBcc(registration.email, cc);
+
+  return sendBrevoEmail({
+    to: [{ email: registration.email, name: registration.name || "Player" }],
+    cc: cc.length > 0 ? cc : undefined,
+    bcc: bcc.length > 0 ? bcc : undefined,
+    subject: "Action Required: NOC Request Rejected / Cancelled - SP Sports Academy",
+    htmlContent: html,
+    textContent: `Your NOC request at SP Sports Academy has been rejected due to pending clearances: ${reasons.join(", ")}. Please clear all pending dues/kit submissions and reapply for the NOC. Details: ${dashboardUrl}`,
+  });
+};
+
+const sendNocRecoveryLinkMail = async ({ registration, recoveryUrl, expiresAt }) => {
+  const enabled = await isMailEnabled();
+  if (!enabled) return { skipped: true, reason: "disabled" };
+
+  if (!registration?.email) return { skipped: true, reason: "missing-recipient" };
+
+  const formattedExpiry = expiresAt
+    ? formatISTDateTime(expiresAt)
+    : "7 days from today";
+
+  const html = buildEmailTemplate({
+    title: "Academy Re-Admission & Recovery Portal 📜",
+    subtitle: "Submit your official application to return to SP Sports Academy",
+    contentHtml: `
+      <p>Dear <strong>${registration.name || "Student"}</strong>,</p>
+      <p>In response to your inquiry regarding re-joining <strong>SP Sports Academy</strong> following your previous NOC clearance, an official secure re-admission recovery portal has been generated for your profile.</p>
+      
+      <div style="background-color:#eff6ff;border:1px solid #93c5fd;border-radius:8px;padding:14px;margin:16px 0;">
+        <p style="margin:0 0 6px 0;"><strong>Player ID / Reg ID:</strong> ${registration.idCardNumber || registration._id}</p>
+        <p style="margin:0 0 6px 0;"><strong>Candidate Name:</strong> ${registration.name}</p>
+        <p style="margin:0;"><strong>Link Valid Until:</strong> <span style="color:#1d4ed8;font-weight:700;">${formattedExpiry}</span></p>
+      </div>
+
+      <p><strong>Instructions to Complete Your Re-Admission Request:</strong></p>
+      <ol style="padding-left:20px;color:#475569;line-height:1.6;">
+        <li>Click the button below to open your personalized Re-Admission Portal.</li>
+        <li>Upload your signed <strong>Application Letter</strong> (PDF or clear image document).</li>
+        <li>Review and separately agree to the <strong>Terms & Conditions</strong> and the <strong>Academy Code of Conduct Policy</strong>.</li>
+        <li>Submit the request for final Super Admin review and verification.</li>
+      </ol>
+
+      <p style="margin-top:16px;">We look forward to welcoming you back to the training squad.</p>
+      <p style="margin-top:16px;">Regards,<br/><strong>SP Sports Academy Administration</strong></p>
+    `,
+    actionButtons: [
+      {
+        text: "Open Re-Admission Application Portal",
+        url: recoveryUrl,
+        type: "primary",
+      },
+    ],
+  });
+
+  const cc = getSafetyCc(registration.email);
+  const bcc = getImportantBcc(registration.email, cc);
+
+  return sendBrevoEmail({
+    to: [{ email: registration.email, name: registration.name || "Student" }],
+    cc: cc.length > 0 ? cc : undefined,
+    bcc: bcc.length > 0 ? bcc : undefined,
+    subject: "Re-Admission Application Link - SP Sports Academy",
+    htmlContent: html,
+    textContent: `A re-admission application link has been generated for ${registration.name}. Please upload your application letter and agree to terms at: ${recoveryUrl}. This link expires on ${formattedExpiry}.`,
+  });
+};
+
+const sendNocRecoveryApprovedMail = async ({ registration }) => {
+  const enabled = await isMailEnabled();
+  if (!enabled) return { skipped: true, reason: "disabled" };
+
+  if (!registration?.email) return { skipped: true, reason: "missing-recipient" };
+
+  const frontendUrl = (
+    process.env.FRONTEND_URL || "https://spkabaddi.me"
+  ).replace(/\/+$/, "");
+  const loginUrl = `${frontendUrl}/player/login`;
+
+  const html = buildEmailTemplate({
+    title: "Welcome Back to SP Sports Academy! 🎉",
+    subtitle: "Official Re-Admission Approved & Membership Reinstated",
+    contentHtml: `
+      <p>Dear <strong>${registration.name || "Athlete"}</strong>,</p>
+      <p>We are delighted to formally notify you that your application for <strong>Re-Admission / Academy Recovery</strong> has been reviewed and <span style="color:#059669;font-weight:700;">APPROVED</span> by the administration.</p>
+      
+      <div style="background-color:#ecfdf5;border:2px solid #10b981;border-radius:8px;padding:16px;margin:16px 0;">
+        <p style="margin:0 0 6px 0;font-size:16px;"><strong>Membership Status:</strong> <span style="color:#047857;font-weight:700;">ACTIVE ATHLETE (REINSTATED)</span></p>
+        <p style="margin:0 0 6px 0;"><strong>ID Card Number:</strong> ${registration.idCardNumber || "SP-MEMBER"}</p>
+        <p style="margin:0;"><strong>Re-admission Effective Date:</strong> ${formatISTDate(new Date())}</p>
+      </div>
+
+      <p>Your previous NOC status has been formally reset and archived. Your training records, attendance access, and dashboard services have been completely restored.</p>
+      <p>Please report to head coach Pappu Kumar at the academy training grounds for squad integration and session schedule.</p>
+
+      <p style="margin-top:16px;">Welcome back to the SP Sports Academy family!<br/><strong>SP Sports Academy Administration</strong></p>
+    `,
+    actionButtons: [
+      {
+        text: "Log In to Player Portal",
+        url: loginUrl,
+        type: "primary",
+      },
+    ],
+  });
+
+  const cc = getSafetyCc(registration.email);
+  const bcc = getImportantBcc(registration.email, cc);
+
+  return sendBrevoEmail({
+    to: [{ email: registration.email, name: registration.name || "Player" }],
+    cc: cc.length > 0 ? cc : undefined,
+    bcc: bcc.length > 0 ? bcc : undefined,
+    subject: "Re-Admission Approved: Welcome Back! - SP Sports Academy",
+    htmlContent: html,
+    textContent: `Your re-admission application for SP Sports Academy has been officially approved. Your active membership is restored. Log in at: ${loginUrl}`,
+  });
+};
+
+
 const buildProfessionalMapHtml = (clubPhonePrimary, clubPhoneSecondary) => {
   return `
     <div style="background:#ffffff;border:2px solid #1e40af;border-radius:12px;overflow:hidden;margin:22px 0;box-shadow:0 4px 16px rgba(30,64,175,0.10);max-width:100%;">
@@ -1164,6 +1345,10 @@ module.exports = {
   sendBirthdayFollowupMail,
   sendNocInitiatedMail,
   sendNocGeneratedMail,
+  sendNocRejectedMail,
+  sendNocRecoveryLinkMail,
+  sendNocRecoveryApprovedMail,
   getSafetyCc,
   getImportantBcc,
 };
+

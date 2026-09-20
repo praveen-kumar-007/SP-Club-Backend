@@ -2,7 +2,7 @@ const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
-const { cloudinary, upload } = require("../config/cloudinary");
+const { cloudinary, upload, uploadDoc } = require("../config/cloudinary");
 const Registration = require("../models/registration");
 const PlayerMessage = require("../models/playerMessage");
 const { sendPasswordOtpMail, sendNocGeneratedMail } = require("../services/brevoMailer");
@@ -1044,4 +1044,148 @@ router.post("/noc/downloaded", playerAuth, async (req, res) => {
   }
 });
 
+// GET /api/player/recovery/verify/:token - Public verification of student recovery portal link
+router.get("/recovery/verify/:token", async (req, res) => {
+  try {
+    const { token } = req.params;
+    if (!token) {
+      return res.status(400).json({ message: "Recovery token is required" });
+    }
+
+    const player = await Registration.findOne({
+      "recovery.recoveryToken": token,
+    }).select("name idCardNumber photo email noc recovery status registeredAt");
+
+    if (!player) {
+      return res.status(404).json({ message: "Invalid recovery link. Please contact academy administration." });
+    }
+
+    if (player.recovery?.tokenExpiresAt && new Date(player.recovery.tokenExpiresAt).getTime() < Date.now()) {
+      return res.status(410).json({
+        message: "This recovery link has expired. Please contact SP Sports Academy administration to request a new link.",
+        expired: true,
+      });
+    }
+
+    return res.json({
+      valid: true,
+      player: {
+        name: player.name,
+        idCardNumber: player.idCardNumber || "SP-MEMBER",
+        photo: player.photo,
+        email: player.email,
+        currentStatus: player.status,
+        noc: {
+          nocNumber: player.noc?.nocNumber || null,
+          status: player.noc?.status || "none",
+          generatedAt: player.noc?.generatedAt || null,
+        },
+        recovery: {
+          status: player.recovery?.status || "none",
+          tokenExpiresAt: player.recovery?.tokenExpiresAt,
+          termsAgreed: Boolean(player.recovery?.termsAgreed),
+          termsAgreedAt: player.recovery?.termsAgreedAt,
+          policyAgreed: Boolean(player.recovery?.policyAgreed),
+          policyAgreedAt: player.recovery?.policyAgreedAt,
+          submittedAt: player.recovery?.submittedAt,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Error verifying recovery token:", error);
+    return res.status(500).json({ message: "Failed to verify recovery link" });
+  }
+});
+
+// POST /api/player/recovery/submit/:token - Student submits re-admission letter & separate terms agreements
+router.post("/recovery/submit/:token", uploadDoc.single("letter"), async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { applicationNote, termsAgreed, termsAgreedAt, policyAgreed, policyAgreedAt } = req.body;
+
+    if (!token) {
+      return res.status(400).json({ message: "Recovery token is required." });
+    }
+
+    const player = await Registration.findOne({
+      "recovery.recoveryToken": token,
+    });
+
+    if (!player) {
+      return res.status(404).json({ message: "Invalid recovery link." });
+    }
+
+    if (player.recovery?.tokenExpiresAt && new Date(player.recovery.tokenExpiresAt).getTime() < Date.now()) {
+      return res.status(410).json({ message: "This recovery link has expired. Please request a new one from the academy." });
+    }
+
+    const isTermsAgreed = termsAgreed === true || termsAgreed === "true";
+    const isPolicyAgreed = policyAgreed === true || policyAgreed === "true";
+
+    if (!isTermsAgreed) {
+      return res.status(400).json({ message: "You must read and agree to the SP Sports Academy Terms & Conditions." });
+    }
+
+    if (!isPolicyAgreed) {
+      return res.status(400).json({ message: "You must read and agree to the SP Sports Academy Rules & Code of Conduct Policy." });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ message: "Official re-admission application letter (PDF or image) is required." });
+    }
+
+    const now = new Date();
+    const resolvedTermsAgreedAt = termsAgreedAt ? new Date(termsAgreedAt) : now;
+    const resolvedPolicyAgreedAt = policyAgreedAt ? new Date(policyAgreedAt) : now;
+
+    const letterUrl = req.file.path || req.file.secure_url || "";
+    const letterPublicId = req.file.filename || "";
+
+    if (!player.recovery) {
+      player.recovery = {};
+    }
+
+    player.recovery.status = "pending_review";
+    player.recovery.submittedVia = "student_link";
+    player.recovery.submittedAt = now;
+    player.recovery.applicationLetterUrl = letterUrl;
+    player.recovery.applicationLetterPublicId = letterPublicId;
+    player.recovery.applicationNote = String(applicationNote || "").trim();
+
+    // Store separate terms and policy agreements with respective timestamps
+    player.recovery.termsAgreed = true;
+    player.recovery.termsAgreedAt = resolvedTermsAgreedAt;
+    player.recovery.policyAgreed = true;
+    player.recovery.policyAgreedAt = resolvedPolicyAgreedAt;
+
+    // Store submission origin details
+    player.recovery.ipAddress = req.ip || req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown";
+    player.recovery.userAgent = req.headers["user-agent"] || "unknown";
+
+    if (!Array.isArray(player.recovery.history)) {
+      player.recovery.history = [];
+    }
+    player.recovery.history.push({
+      action: "application_submitted",
+      timestamp: now,
+      by: "student",
+      details: "Re-admission application letter submitted with signed terms and policy agreements.",
+    });
+
+    await player.save();
+
+    return res.json({
+      success: true,
+      message: "Re-admission application submitted successfully! Academy administration will review your letter and credentials.",
+      submittedAt: now,
+      termsAgreedAt: resolvedTermsAgreedAt,
+      policyAgreedAt: resolvedPolicyAgreedAt,
+    });
+  } catch (error) {
+    console.error("Error submitting recovery application:", error);
+    return res.status(500).json({ message: "Failed to submit recovery application", error: error.message });
+  }
+});
+
 module.exports = router;
+

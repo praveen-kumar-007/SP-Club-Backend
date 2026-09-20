@@ -66,4 +66,39 @@ const uploadGallery = multer({
   limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit for gallery images
 });
 
-module.exports = { cloudinary, upload, uploadGallery };
+// Configure Cloudinary storage for application letters and official documents (PDF, JPG, PNG, WEBP)
+const docStorage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: async (req, file) => {
+    const isPdf = file.mimetype === 'application/pdf';
+    return {
+      folder: 'sp-club/recovery-documents',
+      resource_type: isPdf ? 'raw' : 'auto',
+      public_id: `doc-${Date.now()}-${Math.round(Math.random() * 1e9)}`,
+    };
+  },
+});
+
+const docFileFilter = (req, file, cb) => {
+  const allowed = [
+    'application/pdf',
+    'image/jpeg',
+    'image/jpg',
+    'image/png',
+    'image/webp',
+  ];
+  if (allowed.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Only PDF, JPG, PNG, and WebP document files are allowed!'), false);
+  }
+};
+
+const uploadDoc = multer({
+  storage: docStorage,
+  fileFilter: docFileFilter,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+});
+
+module.exports = { cloudinary, upload, uploadGallery, uploadDoc };
+
