@@ -26,7 +26,10 @@ const processPendingRegistrations = async () => {
   };
 
   try {
-    const pendingRegistrations = await Registration.find({ status: "pending" });
+    const pendingRegistrations = await Registration.find({
+      status: "pending",
+      "recovery.status": { $ne: "pending_review" },
+    });
     summary.totalPending = pendingRegistrations.length;
 
     for (const reg of pendingRegistrations) {

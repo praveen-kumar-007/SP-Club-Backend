@@ -571,7 +571,7 @@ router.get("/registrations", adminAuth, async (req, res) => {
     // Use lean() for faster queries (returns plain objects, not mongoose docs)
     const registrations = await Registration.find(query)
       .select(
-        "_id name email phone parentsPhone role bloodGroup status photo registeredAt aadharNumber dob",
+        "_id name email phone parentsPhone role bloodGroup status photo registeredAt aadharNumber dob recovery noc",
       )
       .sort({ registeredAt: -1 })
       .skip(skip)
@@ -926,28 +926,37 @@ router.put("/registrations/:id/approve", adminAuth, async (req, res) => {
       return res.status(404).json({ message: "Registration not found" });
     }
 
-    if (registration.status === "approved") {
+    if (registration.status === "approved" && registration.recovery?.status !== "pending_review") {
       return res
         .status(400)
         .json({ message: "Registration is already approved" });
     }
 
     const defaultPassword = normalizePhone(registration.phone);
-    if (!defaultPassword) {
+    if (!defaultPassword && !registration.playerPasswordHash) {
       return res.status(400).json({
         message:
           "Phone number is required before approval to set default player password",
       });
     }
 
-    const passwordHash = await bcrypt.hash(defaultPassword, 10);
+    if (!registration.playerPasswordHash && defaultPassword) {
+      const passwordHash = await bcrypt.hash(defaultPassword, 10);
+      registration.playerPasswordHash = passwordHash;
+      registration.playerPasswordSetAt = new Date();
+    }
 
+    const isRecoveryApproval =
+      registration.recovery?.status === "pending_review" ||
+      (registration.noc?.status && registration.noc.status !== "none");
+
+    const now = new Date();
     registration.status = "approved";
     registration.approvedBy = req.adminId;
-    registration.approvedAt = new Date();
+    registration.approvedAt = now;
     registration.rejectionReason = null;
-    registration.playerPasswordHash = passwordHash;
-    registration.playerPasswordSetAt = new Date();
+    registration.rejectedAt = null;
+    registration.autoRejected = false;
     registration.playerPasswordResetOtpHash = null;
     registration.playerPasswordResetOtpExpiresAt = null;
     registration.playerPasswordResetRequestedAt = null;
@@ -955,18 +964,52 @@ router.put("/registrations/:id/approve", adminAuth, async (req, res) => {
     registration.playerForcePasswordReset = false;
     registration.playerLastFailedLoginAt = null;
 
+    if (registration.recovery && (registration.recovery.status === "pending_review" || isRecoveryApproval)) {
+      registration.recovery.status = "approved";
+      registration.recovery.reviewedBy = req.adminId;
+      registration.recovery.reviewedAt = now;
+      registration.recovery.reviewRemarks = "Approved via admin dashboard";
+      if (!Array.isArray(registration.recovery.history)) {
+        registration.recovery.history = [];
+      }
+      registration.recovery.history.push({
+        action: "recovery_approved",
+        timestamp: now,
+        by: "admin",
+        details: "Re-admission approved via admin dashboard.",
+      });
+    }
+
+    if (registration.noc) {
+      registration.noc.status = "none";
+      registration.noc.coolingEndsAt = null;
+      registration.noc.expiresAt = null;
+    }
+
     await registration.save();
     console.log("✅ Registration status updated to approved in database");
 
-    // Send approval email asynchronously (does not block API success)
-    sendApprovalMail(registration, { initialPassword: defaultPassword }).catch(
-      (mailError) => {
+    // Send NOC recovery approval email if this was a recovery re-admission
+    if (isRecoveryApproval) {
+      sendNocRecoveryApprovedMail({ registration }).catch((mailError) => {
         console.error(
-          "Approval email send failed:",
+          "NOC recovery approved email send failed:",
           mailError?.message || mailError,
         );
-      },
-    );
+      });
+    }
+
+    // Send standard approval email asynchronously (does not block API success)
+    if (defaultPassword) {
+      sendApprovalMail(registration, { initialPassword: defaultPassword }).catch(
+        (mailError) => {
+          console.error(
+            "Approval email send failed:",
+            mailError?.message || mailError,
+          );
+        },
+      );
+    }
 
     res.json({
       message: "Registration approved successfully",
@@ -1202,16 +1245,34 @@ router.delete("/registrations/:id/reject", adminAuth, async (req, res) => {
       return res.status(404).json({ message: "Registration not found" });
     }
 
-    if (registration.status === "rejected") {
+    if (registration.status === "rejected" && registration.recovery?.status !== "pending_review") {
       return res
         .status(400)
         .json({ message: "Registration is already rejected" });
     }
 
+    const now = new Date();
     // Update status to rejected (keep in database)
     registration.status = "rejected";
     registration.rejectionReason = reason;
-    registration.rejectedAt = new Date();
+    registration.rejectedAt = now;
+
+    if (registration.recovery?.status === "pending_review") {
+      registration.recovery.status = "rejected";
+      registration.recovery.reviewedBy = req.adminId;
+      registration.recovery.reviewedAt = now;
+      registration.recovery.reviewRemarks = reason;
+      if (!Array.isArray(registration.recovery.history)) {
+        registration.recovery.history = [];
+      }
+      registration.recovery.history.push({
+        action: "recovery_rejected",
+        timestamp: now,
+        by: "admin",
+        details: `Re-admission rejected by Admin: ${reason}`,
+      });
+    }
+
     await registration.save();
 
     console.log("Registration marked as rejected (stored in database)");
@@ -2919,6 +2980,7 @@ const processNocTransitions = async () => {
       "noc.status": "approved",
       "noc.expiresAt": { $lte: now },
       status: { $ne: "rejected" },
+      "recovery.status": { $ne: "pending_review" },
     });
 
     for (const player of expiredNocPlayers) {

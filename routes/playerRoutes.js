@@ -1152,6 +1152,11 @@ router.post("/recovery/submit/:token", uploadDoc.single("letter"), async (req, r
     player.recovery.applicationLetterPublicId = letterPublicId;
     player.recovery.applicationNote = String(applicationNote || "").trim();
 
+    // Place registration into pending queue so administration can review and approve directly from pending/dashboard
+    player.status = "pending";
+    player.rejectedAt = null;
+    player.rejectionReason = null;
+
     // Store separate terms and policy agreements with respective timestamps
     player.recovery.termsAgreed = true;
     player.recovery.termsAgreedAt = resolvedTermsAgreedAt;
