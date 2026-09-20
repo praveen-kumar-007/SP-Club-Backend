@@ -477,6 +477,25 @@ const registrationSchema = new mongoose.Schema({
         details: { type: String },
       },
     ],
+    archivedApplications: [
+      {
+        applicationLetterUrl: { type: String, default: null },
+        applicationLetterPublicId: { type: String, default: null },
+        applicationNote: { type: String, default: "" },
+        submittedVia: { type: String, default: null },
+        submittedAt: { type: Date, default: null },
+        termsAgreedAt: { type: Date, default: null },
+        policyAgreedAt: { type: Date, default: null },
+        ipAddress: { type: String, default: null },
+        rejectedAt: { type: Date, default: null },
+        rejectionReason: { type: String, default: "" },
+        rejectedBy: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Admin",
+          default: null,
+        },
+      },
+    ],
   },
 });
 

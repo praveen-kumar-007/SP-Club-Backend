@@ -20,6 +20,7 @@ const {
   sendNocRejectedMail,
   sendNocRecoveryLinkMail,
   sendNocRecoveryApprovedMail,
+  sendNocRecoveryRejectedMail,
   sendApplicationRejectedMail,
   sendPendingVerificationReminderMail,
   sendApplicationProcessingMail,
@@ -1252,16 +1253,50 @@ router.delete("/registrations/:id/reject", adminAuth, async (req, res) => {
     }
 
     const now = new Date();
-    // Update status to rejected (keep in database)
     registration.status = "rejected";
     registration.rejectionReason = reason;
     registration.rejectedAt = now;
 
+    let isRecoveryRejection = false;
+    let recoveryUrl = "";
+    let expiresAt = null;
+
     if (registration.recovery?.status === "pending_review") {
-      registration.recovery.status = "rejected";
+      isRecoveryRejection = true;
+
+      // 1. Store as copy into archivedApplications
+      if (!Array.isArray(registration.recovery.archivedApplications)) {
+        registration.recovery.archivedApplications = [];
+      }
+      registration.recovery.archivedApplications.push({
+        applicationLetterUrl: registration.recovery.applicationLetterUrl,
+        applicationLetterPublicId: registration.recovery.applicationLetterPublicId,
+        applicationNote: registration.recovery.applicationNote,
+        submittedVia: registration.recovery.submittedVia,
+        submittedAt: registration.recovery.submittedAt,
+        termsAgreedAt: registration.recovery.termsAgreedAt,
+        policyAgreedAt: registration.recovery.policyAgreedAt,
+        ipAddress: registration.recovery.ipAddress,
+        rejectedAt: now,
+        rejectionReason: reason,
+        rejectedBy: req.adminId,
+      });
+
+      // 2. Generate a fresh recovery portal token so member can re-access and re-upload
+      const token = crypto.randomBytes(32).toString("hex");
+      expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+      const frontendUrl = (
+        process.env.FRONTEND_URL || "https://spkabaddi.me"
+      ).replace(/\/+$/, "");
+      recoveryUrl = `${frontendUrl}/noc-recovery/${token}`;
+
+      registration.recovery.status = "link_sent";
+      registration.recovery.recoveryToken = token;
+      registration.recovery.tokenExpiresAt = expiresAt;
       registration.recovery.reviewedBy = req.adminId;
       registration.recovery.reviewedAt = now;
       registration.recovery.reviewRemarks = reason;
+
       if (!Array.isArray(registration.recovery.history)) {
         registration.recovery.history = [];
       }
@@ -1269,7 +1304,7 @@ router.delete("/registrations/:id/reject", adminAuth, async (req, res) => {
         action: "recovery_rejected",
         timestamp: now,
         by: "admin",
-        details: `Re-admission rejected by Admin: ${reason}`,
+        details: `Re-admission rejected by Admin: ${reason}. Stored archive copy & dispatched new portal access link to member.`,
       });
     }
 
@@ -1277,13 +1312,24 @@ router.delete("/registrations/:id/reject", adminAuth, async (req, res) => {
 
     console.log("Registration marked as rejected (stored in database)");
 
-    // Send formal rejection mail asynchronously
-    sendApplicationRejectedMail(registration, reason).catch((mailError) => {
-      console.error(
-        "Rejection email send failed:",
-        mailError?.message || mailError,
-      );
-    });
+    // Send corresponding rejection mail
+    if (isRecoveryRejection) {
+      sendNocRecoveryRejectedMail({
+        registration,
+        reason,
+        recoveryUrl,
+        expiresAt,
+      }).catch((mailError) => {
+        console.error("Recovery rejection email send failed:", mailError?.message || mailError);
+      });
+    } else {
+      sendApplicationRejectedMail(registration, reason).catch((mailError) => {
+        console.error(
+          "Rejection email send failed:",
+          mailError?.message || mailError,
+        );
+      });
+    }
 
     res.json({
       message: "Registration rejected successfully",
@@ -3486,24 +3532,111 @@ router.post("/registrations/:id/recovery/review", adminAuth, async (req, res) =>
         player,
       });
     } else {
-      player.recovery.status = "rejected";
+      const reason = String(reviewRemarks || "Re-admission application requires revision").trim();
+
+      // 1. Store as copy in archivedApplications
+      if (!Array.isArray(player.recovery.archivedApplications)) {
+        player.recovery.archivedApplications = [];
+      }
+      player.recovery.archivedApplications.push({
+        applicationLetterUrl: player.recovery.applicationLetterUrl,
+        applicationLetterPublicId: player.recovery.applicationLetterPublicId,
+        applicationNote: player.recovery.applicationNote,
+        submittedVia: player.recovery.submittedVia,
+        submittedAt: player.recovery.submittedAt,
+        termsAgreedAt: player.recovery.termsAgreedAt,
+        policyAgreedAt: player.recovery.policyAgreedAt,
+        ipAddress: player.recovery.ipAddress,
+        rejectedAt: now,
+        rejectionReason: reason,
+        rejectedBy: req.adminId,
+      });
+
+      // 2. Generate a new recovery token and link so student can re-upload
+      const token = crypto.randomBytes(32).toString("hex");
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+      const frontendUrl = (
+        process.env.FRONTEND_URL || "https://spkabaddi.me"
+      ).replace(/\/+$/, "");
+      const recoveryUrl = `${frontendUrl}/noc-recovery/${token}`;
+
+      player.recovery.status = "link_sent";
+      player.recovery.recoveryToken = token;
+      player.recovery.tokenExpiresAt = expiresAt;
+      player.status = "rejected";
+      player.rejectedAt = now;
+      player.rejectionReason = reason;
+
       player.recovery.history.push({
         action: "recovery_rejected",
         timestamp: now,
         by: "admin",
-        details: `Re-admission rejected by Admin: ${reviewRemarks || "Not approved"}`,
+        details: `Re-admission rejected by Admin: ${reason}. Stored copy in institutional archive & dispatched re-submission portal link.`,
       });
 
       await player.save();
 
+      // 3. Dispatch professional rejection & re-upload email via Brevo
+      try {
+        await sendNocRecoveryRejectedMail({
+          registration: player,
+          reason,
+          recoveryUrl,
+          expiresAt,
+        });
+      } catch (mailErr) {
+        console.error("Error dispatching recovery rejection mail:", mailErr);
+      }
+
       return res.json({
-        message: "Re-admission application rejected.",
+        message: "Re-admission application rejected. Archived application copy and sent re-upload portal access link to member.",
+        recoveryUrl,
         player,
       });
     }
   } catch (error) {
     console.error("Error reviewing recovery application:", error);
     return res.status(500).json({ message: "Failed to process review", error: error.message });
+  }
+});
+
+// DELETE /api/admin/registrations/:id/recovery/letter - Admin deletes/clears uploaded application letter
+router.delete("/registrations/:id/recovery/letter", adminAuth, async (req, res) => {
+  try {
+    const player = await Registration.findById(req.params.id);
+    if (!player) {
+      return res.status(404).json({ message: "Player not found" });
+    }
+
+    if (player.recovery?.applicationLetterPublicId) {
+      try {
+        await cloudinary.uploader.destroy(player.recovery.applicationLetterPublicId, {
+          resource_type: "raw",
+        });
+      } catch (cloudErr) {
+        console.warn("Cloudinary letter delete warning:", cloudErr?.message || cloudErr);
+      }
+    }
+
+    if (player.recovery) {
+      player.recovery.applicationLetterUrl = null;
+      player.recovery.applicationLetterPublicId = null;
+      if (!Array.isArray(player.recovery.history)) {
+        player.recovery.history = [];
+      }
+      player.recovery.history.push({
+        action: "application_letter_deleted",
+        timestamp: new Date(),
+        by: "admin",
+        details: `Application letter removed by Admin (${req.adminId})`,
+      });
+    }
+
+    await player.save();
+    return res.json({ message: "Application letter removed successfully", player });
+  } catch (error) {
+    console.error("Error deleting recovery letter:", error);
+    return res.status(500).json({ message: "Failed to delete application letter", error: error.message });
   }
 });
 

@@ -948,6 +948,68 @@ const sendNocRecoveryApprovedMail = async ({ registration }) => {
   });
 };
 
+const sendNocRecoveryRejectedMail = async ({ registration, reason, recoveryUrl, expiresAt }) => {
+  const enabled = await isMailEnabled();
+  if (!enabled) return { skipped: true, reason: "disabled" };
+
+  if (!registration?.email) return { skipped: true, reason: "missing-recipient" };
+
+  const formattedExpiry = expiresAt
+    ? formatISTDateTime(expiresAt)
+    : "7 days from today";
+
+  const rejectionReasonText = String(reason || "Application criteria not met").trim();
+
+  const html = buildEmailTemplate({
+    title: "Re-Admission Application Requires Revision ⚠️",
+    subtitle: "Action Required: Re-admission Application Requires Re-submission",
+    contentHtml: `
+      <p>Dear <strong>${registration.name || "Student"}</strong>,</p>
+      <p>Your recent application for <strong>Academy Re-Admission / Recovery</strong> has been reviewed by the administration and requires revision before it can be approved.</p>
+      
+      <div style="background-color:#fef2f2;border:2px solid #ef4444;border-radius:8px;padding:16px;margin:16px 0;">
+        <p style="margin:0 0 6px 0;font-size:14px;color:#991b1b;"><strong>Reason for Rejection / Revision Required:</strong></p>
+        <p style="margin:0;font-size:15px;color:#b91c1c;font-weight:600;line-height:1.5;">${rejectionReasonText}</p>
+      </div>
+
+      <div style="background-color:#f8fafc;border:1px solid #cbd5e1;border-radius:8px;padding:12px;margin:16px 0;font-size:13px;color:#475569;">
+        <p style="margin:0 0 4px 0;"><strong>Stored Copy:</strong> A copy of your previously submitted application has been archived in institutional records for audit.</p>
+        <p style="margin:0;"><strong>Re-Submission Portal Deadline:</strong> <span style="color:#0f172a;font-weight:700;">${formattedExpiry}</span></p>
+      </div>
+
+      <p><strong>Next Steps to Re-Submit:</strong></p>
+      <ol style="padding-left:20px;color:#475569;line-height:1.6;">
+        <li>Review the remarks and deficiency details noted by administration above.</li>
+        <li>Click the button below to re-access your secure <strong>Re-Admission Portal</strong>.</li>
+        <li>Upload your revised official application letter (PDF or clear image document).</li>
+        <li>Re-confirm the required terms and submit for re-evaluation.</li>
+      </ol>
+
+      <p style="margin-top:16px;">If you have any questions or require clarification, please contact the academy office.</p>
+      <p style="margin-top:16px;">Regards,<br/><strong>SP Sports Academy Administration</strong></p>
+    `,
+    actionButtons: [
+      {
+        text: "Open Portal & Re-Upload Application",
+        url: recoveryUrl,
+        type: "primary",
+      },
+    ],
+  });
+
+  const cc = getSafetyCc(registration.email);
+  const bcc = getImportantBcc(registration.email, cc);
+
+  return sendBrevoEmail({
+    to: [{ email: registration.email, name: registration.name || "Student" }],
+    cc: cc.length > 0 ? cc : undefined,
+    bcc: bcc.length > 0 ? bcc : undefined,
+    subject: "Re-Admission Application Requires Revision - SP Sports Academy",
+    htmlContent: html,
+    textContent: `Your re-admission application for SP Sports Academy requires revision. Reason: ${rejectionReasonText}. Please re-upload your application at: ${recoveryUrl}. This link expires on ${formattedExpiry}.`,
+  });
+};
+
 
 const buildProfessionalMapHtml = (clubPhonePrimary, clubPhoneSecondary) => {
   return `
@@ -1348,6 +1410,7 @@ module.exports = {
   sendNocRejectedMail,
   sendNocRecoveryLinkMail,
   sendNocRecoveryApprovedMail,
+  sendNocRecoveryRejectedMail,
   getSafetyCc,
   getImportantBcc,
 };
