@@ -227,25 +227,41 @@ router.post("/login", async (req, res) => {
       admin.activeSessions = [];
     }
 
+    // Automatically purge expired sessions (JWT tokens expire in 24 hours)
+    const nowMs = Date.now();
+    const SESSION_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
+    admin.activeSessions = admin.activeSessions.filter((s) => {
+      const lastActivity = s.lastActivityTime ? new Date(s.lastActivityTime).getTime() : 0;
+      const login = s.loginTime ? new Date(s.loginTime).getTime() : 0;
+      const effectiveTime = Math.max(lastActivity, login);
+      return (nowMs - effectiveTime) < SESSION_EXPIRY_MS;
+    });
+
     // Check if device already has an active session
     const existingSessionIndex = admin.activeSessions.findIndex(
       (s) => s.deviceId === deviceId,
     );
 
-    // If this is a NEW device (not already logged in) and already at device cap, reject.
+    // If this is a NEW device and still at or above device cap, evict oldest session (FIFO)
+    // so legitimate administrators are never locked out of their accounts.
     if (
       existingSessionIndex === -1 &&
       admin.activeSessions.length >= MAX_ADMIN_DEVICES
     ) {
-      return res.status(429).json({
-        message: `Maximum ${MAX_ADMIN_DEVICES} devices allowed. Please logout from another device first.`,
-        activeSessions: admin.activeSessions.length,
-        maxDevices: MAX_ADMIN_DEVICES,
-        currentDevices: admin.activeSessions.map((s) => ({
-          deviceName: s.deviceName,
-          loginTime: s.loginTime,
-        })),
+      admin.activeSessions.sort((a, b) => {
+        const timeA = Math.max(
+          a.lastActivityTime ? new Date(a.lastActivityTime).getTime() : 0,
+          a.loginTime ? new Date(a.loginTime).getTime() : 0
+        );
+        const timeB = Math.max(
+          b.lastActivityTime ? new Date(b.lastActivityTime).getTime() : 0,
+          b.loginTime ? new Date(b.loginTime).getTime() : 0
+        );
+        return timeA - timeB;
       });
+      while (admin.activeSessions.length >= MAX_ADMIN_DEVICES) {
+        admin.activeSessions.shift();
+      }
     }
 
     if (existingSessionIndex !== -1) {
