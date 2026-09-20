@@ -30,29 +30,38 @@ const formatISTDateTime = (dateVal) => {
   if (!dateVal) return "N/A";
   const d = new Date(dateVal);
   if (isNaN(d.getTime())) return "N/A";
-  return (
-    d.toLocaleString("en-IN", {
-      timeZone: "Asia/Kolkata",
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-    }) + " IST"
-  );
+  const parts = new Intl.DateTimeFormat("en-IN", {
+    timeZone: "Asia/Kolkata",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  }).formatToParts(d);
+  const day = parts.find((p) => p.type === "day")?.value || "";
+  const month = parts.find((p) => p.type === "month")?.value || "";
+  const year = parts.find((p) => p.type === "year")?.value || "";
+  const hour = parts.find((p) => p.type === "hour")?.value || "";
+  const minute = parts.find((p) => p.type === "minute")?.value || "";
+  const dayPeriod = (parts.find((p) => p.type === "dayPeriod")?.value || "").toUpperCase();
+  return `${day}-${month}-${year} ${hour}:${minute} ${dayPeriod} IST`;
 };
 
 const formatISTDate = (dateVal) => {
   if (!dateVal) return "N/A";
   const d = new Date(dateVal);
   if (isNaN(d.getTime())) return "N/A";
-  return d.toLocaleDateString("en-IN", {
+  const parts = new Intl.DateTimeFormat("en-IN", {
     timeZone: "Asia/Kolkata",
     day: "2-digit",
-    month: "short",
+    month: "2-digit",
     year: "numeric",
-  });
+  }).formatToParts(d);
+  const day = parts.find((p) => p.type === "day")?.value || "";
+  const month = parts.find((p) => p.type === "month")?.value || "";
+  const year = parts.find((p) => p.type === "year")?.value || "";
+  return `${day}-${month}-${year}`;
 };
 
 const getSafetyCc = (recipientList = [], customCc = []) => {
